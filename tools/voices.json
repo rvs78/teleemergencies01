@@ -1,0 +1,8 @@
+{
+  "_comment": "Per canviar les veus: edita model/voices/format i torna a executar tools/gen_voices.py. Les veus s'alternen per element (cada guió de ràdio manté la mateixa veu de CECOS).",
+  "model": "heygen/heygen-voice-1-turbo:free",
+  "voices": ["nadine", "lucian"],
+  "format": "pcm",
+  "pcm_rate": 44100,
+  "lang": "ca"
+}

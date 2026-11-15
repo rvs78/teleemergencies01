@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ca">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Codi 3 · Parla com el SEM · Teleemergències</title>
+  <meta name="description" content="Aprèn el CODI 3 del SEM i l'alfabet INTERCO en sis fases progressives: escenes il·lustrades, línia del servei i simulador de ràdio amb CECOS (MP0060 Teleemergències, TES 1AA).">
+  <meta name="theme-color" content="#0F1B2D">
+  <link rel="preload" as="font" type="font/woff2" href="./assets/fonts/barlow-condensed-latin-700-normal.woff2" crossorigin>
+  <link rel="preload" as="font" type="font/woff2" href="./assets/fonts/barlow-latin-400-normal.woff2" crossorigin>
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230F1B2D'/><rect x='10' y='9' width='12' height='18' rx='2.5' fill='none' stroke='%23F5A623' stroke-width='2.4'/><path d='M13 9V4' stroke='%23F5A623' stroke-width='2.4' stroke-linecap='round'/><circle cx='16' cy='21' r='2.2' fill='%23F5A623'/></svg>">
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-radio" viewBox="0 0 24 24"><rect x="6" y="7" width="12" height="15" rx="2.5"/><path d="M9 7V2.5M9.5 12h5M9.5 15h5"/><circle cx="12" cy="18.5" r=".6"/></symbol>
+      <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.4 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z"/><path d="M4.5 12.5h4l1.5-3 2.5 6 1.5-3h5.5"/></symbol>
+      <symbol id="i-truck" viewBox="0 0 24 24"><path d="M2.5 6.5h11v10h-11zM13.5 10h4.5l3.5 3.5v3h-8"/><circle cx="7" cy="17.5" r="2"/><circle cx="17.5" cy="17.5" r="2"/><path d="M7 9v4M5 11h4"/></symbol>
+      <symbol id="i-route" viewBox="0 0 24 24"><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="5.5" r="2.5"/><path d="M8 18.5h7.5a3 3 0 0 0 0-6h-7a3 3 0 0 1 0-6H16"/></symbol>
+      <symbol id="i-siren" viewBox="0 0 24 24"><path d="M6 18v-5a6 6 0 0 1 12 0v5"/><path d="M4 18h16v3H4zM12 3v2M4.2 6.2l1.4 1.4M19.8 6.2l-1.4 1.4"/></symbol>
+      <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+      <symbol id="i-signal" viewBox="0 0 24 24"><path d="M4 20v-3M9 20v-7M14 20v-11M19 20V4"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="M4.5 12.5l5 5 10-11"/></symbol>
+      <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+      <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5l12 7.5-12 7.5z"/></symbol>
+      <symbol id="i-sound" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></symbol>
+      <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.3a2.6 2.6 0 0 1 5 1c0 1.7-2.5 2.2-2.5 3.7M12 17.2v.1"/></symbol>
+      <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9.5 2.5h5"/></symbol>
+      <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h15M13 6l6 6-6 6"/></symbol>
+      <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></symbol>
+      <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></symbol>
+      <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+      <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5zM4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/></symbol>
+      <symbol id="i-file" viewBox="0 0 24 24"><path d="M6 2.5h8l4.5 4.5v14.5H6z"/><path d="M14 2.5V7h4.5M9 12.5h6M9 16.5h6"/></symbol>
+      <symbol id="i-exit" viewBox="0 0 24 24"><path d="M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10"/></symbol>
+      <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></symbol>
+      <symbol id="i-spell" viewBox="0 0 24 24"><path d="M3 18l4.5-12L12 18M4.8 14h5.4M14 6h4.5a2.5 2.5 0 0 1 0 5H14zM14 11h5a3 3 0 0 1 0 6h-5z"/></symbol>
+      <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/></symbol>
+      <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="2"/><circle cx="8.5" cy="9.5" r="1.8"/><path d="M21 16l-5.5-5.5L5 19.5"/></symbol>
+      <symbol id="i-ear" viewBox="0 0 24 24"><path d="M7 9a5 5 0 0 1 10 0c0 3-2.5 3.6-3 6.2-.4 2.2-1.8 3.8-4 3.8a3.5 3.5 0 0 1-3-1.6"/><path d="M10 9.5a2 2 0 0 1 4 0c0 1.4-1.3 1.7-1.5 3"/></symbol>
+      <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></symbol>
+      <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></symbol>
+    </defs>
+  </svg>
+
+  <header class="top" id="top" hidden>
+    <a class="brand" href="#tauler" data-go="dash" aria-label="Tauler">
+      <span class="brand-mark"><svg><use href="#i-radio"/></svg></span>
+      <span class="brand-text"><b>Codi 3</b><small>Parla com el SEM</small></span>
+    </a>
+    <ol class="steps" id="steps" aria-label="Progrés per fases"></ol>
+    <div class="top-right">
+      <button class="icon-btn" id="btn-ref" type="button" aria-label="Consulta el Codi 3 i l'INTERCO"><svg><use href="#i-book"/></svg><span class="lbl">Codis</span></button>
+      <div class="score" id="score" aria-live="polite"></div>
+    </div>
+  </header>
+  <main id="app" tabindex="-1"></main>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <dialog id="ref" aria-labelledby="ref-title"></dialog>
+  <noscript>Cal activar JavaScript per fer l'activitat.</noscript>
+  <script src="./vendor/jspdf.umd.min.js" defer></script>
+  <script src="./data.js" defer></script>
+  <script src="./app.js" defer></script>
+</body>
+</html>

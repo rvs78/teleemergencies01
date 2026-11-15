@@ -1,0 +1,25 @@
+{
+ "model": "heygen/heygen-voice-1-turbo:free",
+ "files": {
+  "l1": "nadine",
+  "l2": "lucian",
+  "l3": "nadine",
+  "l4": "lucian",
+  "d1": "lucian",
+  "d2": "nadine",
+  "d3": "lucian",
+  "d4": "nadine",
+  "d5": "lucian",
+  "d6": "nadine",
+  "r1-1": "nadine",
+  "r1-3": "nadine",
+  "r2-0": "lucian",
+  "r2-2": "lucian",
+  "r2-4": "lucian",
+  "r3-1": "nadine",
+  "r3-3": "nadine",
+  "r4-1": "lucian",
+  "r4-3": "lucian",
+  "r4-5": "lucian"
+ }
+}
