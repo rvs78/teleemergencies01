@@ -11,7 +11,7 @@
     { id: 'f1', n: 1, icon: 'spell', title: 'Alfabet INTERCO', bloom: 'Recordar', art: 'assets/img/s3-3.webp',
       goal: 'Entendre i lletrejar per ràdio amb l’alfabet internacional.',
       todo: ['Escolta: CECOS lletreja una paraula i tu l’escrius. Primer amb text, després només amb la veu.', 'Parla: surt una paraula de la professió i la lletreges per veu en INTERCO.', 'Si CECOS no et copia, repeteix.'],
-      ctl: [['PARLA', 'mantén premut el botó vermell (o la barra espaiadora) mentre parles'], ['CECOS', 'botó verd: torna a escoltar el missatge'], ['Micròfon', 'el navegador et demanarà permís; sense micròfon ho faràs amb fitxes']] },
+      ctl: [['PARLA', 'mantén premut el botó vermell (o la barra espaiadora) mentre parles'], ['CECOS', 'botó verd: torna a escoltar el missatge'], ['Micròfon', 'activa’l quan t’ho demani; la gravació és temporal. Sense micròfon ho faràs amb fitxes']] },
     { id: 'f2', n: 2, icon: 'grid', title: 'Famílies de codis', bloom: 'Comprendre', art: 'assets/img/f2/c3-3.webp',
       goal: 'Entendre per a què serveix cada codi i agrupar-lo en la seva família.',
       todo: ['Per la ràdio sentiràs una frase real amb un codi.', 'Mira la imatge i tria la família on va.', 'Després veuràs l’explicació amb un exemple i dos codis relacionats.'],
@@ -30,8 +30,8 @@
       ctl: [['CECOS', 'botó verd: torna a escoltar el missatge'], ['1–3', 'dreceres de teclat']] },
     { id: 'f6', n: 6, icon: 'radio', title: 'Simulador de ràdio', bloom: 'Transferir', art: 'assets/img/cabina.webp',
       goal: 'Mantenir una comunicació completa amb CECOS seguint el protocol i els codis.',
-      todo: ['4 situacions: inici de guàrdia, assignació de servei, trasllat i final del servei.', 'Tria què dius i mantén premut PARLA mentre transmets.', 'Si prems PARLA mentre parla CECOS, trepitges la comunicació (3.13).'],
-      ctl: [['PARLA', 'mantén premut el botó vermell (o la barra espaiadora) i deixa’l anar per enviar'], ['Clic / toc', 'tria el missatge abans de prémer PARLA']] },
+      todo: ['Engega l’emissora i sintonitza el canal i el subcanal de CECOS que surten al full de guàrdia.', '4 situacions: inici de guàrdia, assignació de servei, trasllat i final del servei.', 'Digues el missatge correcte mantenint premut el PTT (o tria’l amb un clic si no tens micròfon).', 'Si prems el PTT mentre parla CECOS, trepitges la comunicació (3.13).'],
+      ctl: [['Encesa · VOL', 'engega l’emissora i ajusta el volum'], ['CANAL · SUBCANAL', 'fletxes per sintonitzar CECOS'], ['PTT', 'mantén premut el botó (o la barra espaiadora) mentre parles']] },
   ];
 
   /* ---------- utilitats ---------- */
@@ -64,9 +64,10 @@
 
   /* ========== RADIOCOMUNICADOR (àudio + panell inferior) ========== */
   const Radio = (() => {
-    const dock = $('#dock'), cv = $('#wave'), g2 = cv.getContext('2d'), cap = $('#dock-cap'), stt = $('#dock-status');
+    const dock = $('#dock'), cv = $('#wave'), cap = $('#dock-cap'), stt = $('#dock-status');
     const lampRx = $('#lamp-rx'), ptt = $('#ptt');
-    let ac = null, master, an, micAn = null, micStream = null, cur = null, vol = 0.9, state = 'idle', last = null, raf = 0, handlers = null, txAt = 0, down = false;
+    let C = cv, G = cv.getContext('2d'), hook = null;
+    let ac = null, master, an, cur = null, vol = 0.9, state = 'idle', last = null, raf = 0, handlers = null, txAt = 0, down = false;
     const bufs = {};
     function ctx() {
       if (!ac) {
@@ -102,6 +103,7 @@
     function setState(s, label) {
       state = s; dock.classList.toggle('rx', s === 'rx'); dock.classList.toggle('tx', s === 'tx');
       lampRx.classList.toggle('on', s === 'rx'); ptt.classList.toggle('on', s === 'tx');
+      hook && hook(s);
       stt.textContent = label || (s === 'rx' ? '◀ RX · CECOS' : s === 'tx' ? '▶ TX · UNITAT' : 'EN ESCOLTA');
     }
     function stop() { if (cur) { try { cur.src.onended = null; cur.src.stop(); cur.nz.stop(); } catch { } cur.res && cur.res(false); cur = null; } if (state === 'rx') setState('idle'); }
@@ -130,10 +132,8 @@
         src.onended = () => { if (cur === me) { cur = null; setState('idle'); opts.onProgress && opts.onProgress(1); } res(true); };
       });
     }
-    async function mic() {
-      if (micAn || !navigator.mediaDevices) return;
-      try { micStream = await navigator.mediaDevices.getUserMedia({ audio: true }); const a = ctx(); micAn = a.createAnalyser(); micAn.fftSize = 1024; a.createMediaStreamSource(micStream).connect(micAn); } catch { }
-    }
+    function tune() { try { const t = ctx().currentTime; noise(t, .7, .09, 1400); noise(t + .1, .5, .05, 3000); beep(t + .72, 1750, .09, .05); } catch { } }
+    function key(f = 1300) { try { beep(ctx().currentTime, f, .04, .03); } catch { } }
     /* PTT */
     function pttDown(e) {
       e && e.preventDefault(); if (down || !handlers || ptt.disabled) return;
@@ -150,43 +150,120 @@
     document.addEventListener('keydown', e => { if (e.code === 'Space' && !e.repeat && handlers && !/INPUT|TEXTAREA/.test(e.target.tagName) && !$('#ref').open) { e.preventDefault(); pttDown(); } });
     document.addEventListener('keyup', e => { if (e.code === 'Space' && down) { e.preventDefault(); pttUp(); } });
     lampRx.addEventListener('click', () => { if (last && state !== 'tx') play(last.id, last.opts); });
-    $('#vol').addEventListener('input', e => { vol = +e.target.value; if (master) master.gain.value = vol; });
+    $('#vol').addEventListener('input', e => setVol(+e.target.value));
     /* forma d'ona */
     const data = new Uint8Array(1024);
     function draw() {
       raf = requestAnimationFrame(draw);
-      const w = cv.clientWidth, h = cv.clientHeight, dpr = Math.min(2, window.devicePixelRatio || 1);
-      if (cv.width !== w * dpr) { cv.width = w * dpr; cv.height = h * dpr; }
-      g2.setTransform(dpr, 0, 0, dpr, 0, 0); g2.clearRect(0, 0, w, h);
-      g2.strokeStyle = 'rgba(159,170,198,.18)'; g2.lineWidth = 1; g2.beginPath(); for (let x = 0; x < w; x += 24) { g2.moveTo(x, 0); g2.lineTo(x, h); } g2.moveTo(0, h / 2); g2.lineTo(w, h / 2); g2.stroke();
-      const src = state === 'tx' ? micAn : an; let live = false;
+      const w = C.clientWidth, h = C.clientHeight, dpr = Math.min(2, window.devicePixelRatio || 1);
+      if (C.width !== w * dpr) { C.width = w * dpr; C.height = h * dpr; }
+      G.setTransform(dpr, 0, 0, dpr, 0, 0); G.clearRect(0, 0, w, h);
+      G.strokeStyle = 'rgba(159,170,198,.18)'; G.lineWidth = 1; G.beginPath(); for (let x = 0; x < w; x += 24) { G.moveTo(x, 0); G.lineTo(x, h); } G.moveTo(0, h / 2); G.lineTo(w, h / 2); G.stroke();
+      const src = state === 'tx' ? Mic.analyser : an; let live = false;
       if (src) { src.getByteTimeDomainData(data); live = true; }
       const col = state === 'rx' ? '#3DDC97' : state === 'tx' ? '#FF5D5D' : '#5C6C9C', t = performance.now() / 1000;
-      g2.strokeStyle = col; g2.lineWidth = 2; g2.beginPath();
+      G.strokeStyle = col; G.lineWidth = 2; G.beginPath();
       const N = 180, gain = state === 'tx' ? 2.6 : 1.5;
       for (let i = 0; i <= N; i++) {
         let v;
-        if (live && (state !== 'tx' || micAn)) v = (data[Math.floor(i / N * 1023)] - 128) / 128 * gain;
+        if (live && (state !== 'tx' || Mic.analyser)) v = (data[Math.floor(i / N * 1023)] - 128) / 128 * gain;
         else v = state === 'tx' ? Math.sin(i * .5 + t * 18) * Math.sin(i * .07 + t * 3) * .5 : 0;
         if (state === 'idle') v = v * .6 + (Math.random() - .5) * .04;
         const y = h / 2 + Math.max(-1, Math.min(1, v)) * (h / 2 - 5), x = i / N * w;
-        i ? g2.lineTo(x, y) : g2.moveTo(x, y);
+        i ? G.lineTo(x, y) : G.moveTo(x, y);
       }
-      g2.stroke();
+      G.stroke();
     }
-    function show(on) {
-      dock.hidden = !on; cancelAnimationFrame(raf);
-      if (on) { draw(); requestAnimationFrame(() => document.documentElement.style.setProperty('--dock-h', dock.offsetHeight + 'px')); }
-      else { document.documentElement.style.setProperty('--dock-h', '0px'); stop(); last = null; cap.textContent = ''; setPtt(null); }
+    /* mode: 'dock' (panell inferior), 'device' (emissora de la F6, amb el seu propi canvas) o false */
+    function show(mode, canvas) {
+      dock.hidden = mode !== 'dock'; cancelAnimationFrame(raf);
+      C = mode === 'device' && canvas ? canvas : cv; G = C.getContext('2d');
+      if (mode) draw();
+      if (mode === 'dock') requestAnimationFrame(() => document.documentElement.style.setProperty('--dock-h', dock.offsetHeight + 'px'));
+      else document.documentElement.style.setProperty('--dock-h', '0px');
+      if (!mode) { stop(); last = null; cap.textContent = ''; setPtt(null); hook = null; setVol(.9); }
       lampRx.disabled = !last;
     }
+    function setVol(v) { vol = v; if (master) master.gain.value = v; }
     function setPtt(h) { handlers = h; ptt.disabled = !h; ptt.classList.toggle('ready', !!h); if (!h && down) { down = false; setState('idle'); } }
     window.addEventListener('resize', () => { if (!dock.hidden) document.documentElement.style.setProperty('--dock-h', dock.offsetHeight + 'px'); });
-    return { play, stop, show, setPtt, squelch, mic, setState, caption: t => { cap.textContent = t || ''; }, forget: () => { last = null; lampRx.disabled = true; cap.textContent = ''; }, get busy() { return state === 'rx'; } };
+    return { play, stop, show, setPtt, squelch, tune, key, ctx, setVol, pttDown, pttUp, onState: f => { hook = f; }, setState, caption: t => { cap.textContent = t || ''; }, forget: () => { last = null; lampRx.disabled = true; cap.textContent = ''; }, get busy() { return state === 'rx'; } };
   })();
 
-  /* ---------- reconeixement de veu (Web Speech API, català) ---------- */
+  /* ========== MICRÒFON, GRAVACIÓ TEMPORAL I TRANSCRIPCIÓ ==========
+     Cada vegada que l'alumne prem PARLA es grava un àudio temporal a la memòria del navegador. Es transcriu
+     (servei configurat a config.js o reconeixement del navegador), es compara amb el text esperat i s'elimina. */
+  const CFG = Object.assign({ stt: '' }, window.CODI3_CONFIG || {});
   const SRC = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const ENGINE = CFG.stt ? 'endpoint' : SRC ? 'webspeech' : null;
+  const ANDROID = /Android/i.test(navigator.userAgent);
+  const Mic = (() => {
+    let stream = null, an = null, rec = null, chunks = [], peak = 0, poll = 0, t0 = 0, virtual = false;
+    const buf = new Uint8Array(1024), can = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+    async function enable() {
+      if (stream || virtual) return { ok: true };
+      /* a Android el reconeixement del navegador no pot compartir el micròfon amb una gravació paral·lela */
+      if (ENGINE === 'webspeech' && ANDROID) { virtual = true; return { ok: true }; }
+      if (!can) return { ok: false, why: 'Aquest navegador no permet fer servir el micròfon.' };
+      try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } }); }
+      catch (e) { return { ok: false, why: e.name === 'NotAllowedError' ? 'Cal donar permís al micròfon: prem la icona del cadenat, a la barra d’adreces, i permet-lo.' : e.name === 'NotFoundError' ? 'No s’ha trobat cap micròfon connectat.' : 'No s’ha pogut obrir el micròfon (' + e.name + ').' }; }
+      const a = Radio.ctx(); an = a.createAnalyser(); an.fftSize = 1024; a.createMediaStreamSource(stream).connect(an);
+      return { ok: true };
+    }
+    function level() { if (!an) return 0; an.getByteTimeDomainData(buf); let m = 0; for (let i = 0; i < buf.length; i += 2) { const v = Math.abs(buf[i] - 128) / 128; if (v > m) m = v; } return m; }
+    function start() {
+      peak = 0; chunks = []; t0 = performance.now(); clearInterval(poll); poll = setInterval(() => { peak = Math.max(peak, level()); }, 40);
+      if (stream && window.MediaRecorder) { try { rec = new MediaRecorder(stream); rec.ondataavailable = e => { if (e.data.size) chunks.push(e.data); }; rec.start(); } catch { rec = null; } }
+    }
+    function stop() {
+      clearInterval(poll); const ms = performance.now() - t0;
+      return new Promise(res => { if (!rec || rec.state === 'inactive') return res({ blob: null, ms, peak });
+        const r = rec; rec = null; r.onstop = () => { const blob = new Blob(chunks, { type: r.mimeType }); chunks = []; res({ blob, ms, peak }); }; r.stop(); });
+    }
+    return { enable, start, stop, level, get on() { return !!stream || virtual; }, get real() { return !!stream; }, get analyser() { return an; } };
+  })();
+  async function toWav(blob) {
+    const au = await Radio.ctx().decodeAudioData(await blob.arrayBuffer()), rate = 16000, n = Math.max(1, Math.ceil(au.duration * rate));
+    const off = new OfflineAudioContext(1, n, rate), src = off.createBufferSource(); src.buffer = au; src.connect(off.destination); src.start();
+    const pcm = (await off.startRendering()).getChannelData(0), v = new DataView(new ArrayBuffer(44 + pcm.length * 2));
+    const W = (o, t) => [...t].forEach((ch, i) => v.setUint8(o + i, ch.charCodeAt(0)));
+    W(0, 'RIFF'); v.setUint32(4, 36 + pcm.length * 2, true); W(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); W(36, 'data'); v.setUint32(40, pcm.length * 2, true);
+    for (let i = 0; i < pcm.length; i++) v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, pcm[i])) * 32767, true);
+    return new Blob([v], { type: 'audio/wav' });
+  }
+  function listenOnce() {
+    const rec = new SRC(); rec.lang = 'ca-ES'; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 3;
+    const finals = [[], [], []]; let interim = '', error = null, ended = false, resolve;
+    rec.onresult = e => { interim = ''; for (let r = e.resultIndex; r < e.results.length; r++) { const R = e.results[r];
+      if (R.isFinal) for (let a = 0; a < 3; a++) finals[a].push((R[a] || R[0]).transcript); else interim += R[0].transcript + ' '; }
+      Radio.caption('TX · ' + (finals[0].join(' ') + ' ' + interim).trim()); };
+    rec.onerror = e => { if (e.error !== 'no-speech' && e.error !== 'aborted') error = e.error; };
+    rec.onend = () => { ended = true; resolve && resolve(out()); };
+    const out = () => ({ alts: finals.map(f => (f.join(' ') + ' ' + interim).trim()).filter((t, i, a) => t && a.indexOf(t) === i), error });
+    try { rec.start(); } catch { error = 'start'; ended = true; }
+    return { stop: () => new Promise(res => { if (ended) return res(out()); resolve = res; try { rec.stop(); } catch { res(out()); } setTimeout(() => res(out()), 3000); }) };
+  }
+  /* comença a escoltar (PARLA premut); stop() retorna { alts, error, silent } i descarta l'àudio temporal */
+  function capture() {
+    Mic.start(); let sr = null;
+    if (ENGINE === 'webspeech') { try { sr = listenOnce(); } catch { } }
+    return { async stop() {
+      const r = await Mic.stop(); let alts = [], error = null;
+      const silent = Mic.real && r.peak < 0.02;
+      if (ENGINE === 'endpoint') {
+        if (!silent && r.blob) try {
+          const res = await fetch(CFG.stt, { method: 'POST', headers: { 'Content-Type': 'audio/wav' }, body: await toWav(r.blob) });
+          if (!res.ok) throw new Error(res.status); const j = await res.json(); if (j.text) alts = [j.text];
+        } catch { error = 'stt'; }
+      } else if (sr) { const o = await sr.stop(); alts = o.alts; error = o.error; }
+      r.blob = null; /* l'àudio és temporal: no es desa ni s'envia enlloc més */
+      return { alts, error, silent: silent && !alts.length, ms: r.ms };
+    } };
+  }
+  const MIC_ERR = ['not-allowed', 'service-not-allowed', 'audio-capture'];
+
+  /* ---------- comparació del que s'ha dit ---------- */
   const norm = s => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
   function lev(a, b) { const m = a.length, n = b.length, d = Array.from({ length: m + 1 }, (_, i) => [i]); for (let j = 1; j <= n; j++) d[0][j] = j;
     for (let i = 1; i <= m; i++) for (let j = 1; j <= n; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); return d[m][n]; }
@@ -202,18 +279,51 @@
     }
     return { ok: hit.every(Boolean), hit, n: tk.length, score: hit.filter(Boolean).length };
   }
-  function listenOnce() {
-    /* retorna { stop():Promise<{alts:[text], error}> } */
-    const rec = new SRC(); rec.lang = 'ca-ES'; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 3;
-    const finals = [[], [], []]; let interim = '', error = null, ended = false, resolve;
-    rec.onresult = e => { interim = ''; for (let r = e.resultIndex; r < e.results.length; r++) { const R = e.results[r];
-      if (R.isFinal) for (let a = 0; a < 3; a++) finals[a].push((R[a] || R[0]).transcript); else interim += R[0].transcript + ' '; }
-      Radio.caption('TX · ' + (finals[0].join(' ') + ' ' + interim).trim()); };
-    rec.onerror = e => { error = e.error; };
-    rec.onend = () => { ended = true; resolve && resolve(out()); };
-    const out = () => ({ alts: finals.map(f => (f.join(' ') + ' ' + interim).trim()).filter((t, i, a) => t && a.indexOf(t) === i), error });
-    try { rec.start(); } catch (e) { error = 'start'; ended = true; }
-    return { stop: () => new Promise(res => { if (ended) return res(out()); resolve = res; try { rec.stop(); } catch { res(out()); } setTimeout(() => res(out()), 2500); }) };
+  /* frases: passa nombres en lletres a xifres («tres punt vint-i-tres» → 3.23, «set-cents vint-i-set» → 727) */
+  const NUM = { zero: 0, u: 1, un: 1, una: 1, dos: 2, dues: 2, tres: 3, quatre: 4, cinc: 5, sis: 6, set: 7, vuit: 8, nou: 9, deu: 10, onze: 11, dotze: 12, tretze: 13, catorze: 14, quinze: 15, setze: 16,
+    disset: 17, divuit: 18, dinou: 19, vint: 20, trenta: 30, quaranta: 40, cinquanta: 50, seixanta: 60, setanta: 70, vuitanta: 80, noranta: 90 };
+  function sayTokens(text) {
+    const raw = String(text).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/(\d)[.,](\d)/g, '$1 punt $2').replace(/[^a-z0-9]+/g, ' ').trim().split(' ').filter(Boolean);
+    const out = []; let cur = null, kind = '';
+    const flush = () => { if (cur !== null) out.push(String(cur)); cur = null; kind = ''; };
+    for (const t of raw) {
+      if (/^\d+$/.test(t)) { flush(); out.push(t); continue; }
+      if (t === 'cent') { flush(); cur = 100; kind = 'H'; continue; }
+      if (t === 'cents' && kind === 'U' && cur >= 2 && cur <= 9) { cur *= 100; kind = 'H'; continue; }
+      if (t === 'i' && kind === 'T') continue;
+      if (t in NUM) { const v = NUM[t];
+        if (v >= 20) { if (kind === 'H') cur += v; else { flush(); cur = v; } kind = 'T'; }
+        else if (kind === 'T' && v < 10 && cur % 10 === 0) { cur += v; kind = 'X'; }
+        else if (kind === 'H') { cur += v; kind = 'X'; }
+        else { flush(); cur = v; kind = 'U'; }
+        continue; }
+      flush(); out.push(t);
+    }
+    flush();
+    /* «3 punt 23» → «3.23»; xifres soltes seguides («7 4 9») → «749» */
+    const j = []; for (let i = 0; i < out.length; i++) {
+      if (/^\d+$/.test(out[i]) && (out[i + 1] === 'punt' || out[i + 1] === 'coma') && /^\d+$/.test(out[i + 2] || '')) { j.push(out[i] + '.' + out[i + 2]); i += 2; }
+      else if (/^\d$/.test(out[i]) && j.length && /^\d+$/.test(j[j.length - 1]) && !/\./.test(j[j.length - 1]) && /^\d$/.test(out[i - 1] || '')) j[j.length - 1] += out[i];
+      else j.push(out[i]);
+    }
+    return j;
+  }
+  /* tria quina de les opcions s'ha dit; -1 si no queda clar */
+  function matchSay(text, options) {
+    const said = sayTokens(text); if (!said.length) return { idx: -1, scores: [] };
+    const isCode = t => /^\d+\.\d+$/.test(t), w = t => isCode(t) ? 4 : /^\d+$/.test(t) ? 2 : t.length > 3 ? 1 : .4;
+    const eq = (x, t) => x === t || (!/\d/.test(t) && t.length > 4 && lev(x, t) <= 1);
+    const scores = options.map(o => {
+      /* coincidència en ordre (subseqüència comuna més llarga, ponderada): «CECOS de la Bravo» ≠ «Bravo de CECOS» */
+      const tk = sayTokens(o.split('(')[0]).filter(t => !/^\d{5,}$/.test(t)), n = tk.length, m = said.length, tot = tk.reduce((a, t) => a + w(t), 0);
+      const L = Array.from({ length: n + 1 }, () => new Float32Array(m + 1));
+      for (let i = 1; i <= n; i++) for (let j = 1; j <= m; j++) L[i][j] = Math.max(L[i - 1][j], L[i][j - 1], eq(said[j - 1], tk[i - 1]) ? L[i - 1][j - 1] + w(tk[i - 1]) : 0);
+      const extra = said.filter(t => isCode(t) && !tk.includes(t)).length;
+      return Math.max(0, L[n][m] / Math.max(tot, .1) - .35 * extra);
+    });
+    const order = scores.map((v, i) => [v, i]).sort((a, b) => b[0] - a[0]);
+    const ok = order[0][0] >= .55 && (order.length < 2 || order[0][0] - order[1][0] >= .1);
+    return { idx: ok ? order[0][1] : -1, scores };
   }
 
   /* ---------- capçalera ---------- */
@@ -232,7 +342,7 @@
     Radio.stop(); clearInterval(timerId); keys = null; Radio.setPtt(null);
     window.scrollTo({ top: 0 });
     if (!S && screen !== 'login') screen = 'login';
-    Radio.show(screen === 'phase');
+    Radio.show(screen === 'phase' && arg !== 'f6' ? 'dock' : false);
     ({ login, dash, intro, phase: runPhase, results }[screen] || dash)(arg);
     app.focus({ preventScroll: true });
   }
@@ -363,7 +473,7 @@
     const L = shuffle(D.LISTEN).slice(0, 4), W = shuffle(D.SPELL.filter(w => w.word.length <= 6)).slice(0, 2).concat(shuffle(D.SPELL.filter(w => w.word.length > 6)).slice(0, 2));
     const items = [...L.map((x, k) => ({ t: 'listen', text: k < 2, ...x })), ...W.map(x => ({ t: 'speak', ...x }))];
     const val = D.POINTS.f1 / items.length; let i = 0, score = 0; const marks = [];
-    const next = () => { i++; show(); };
+    let noVoice = false; const next = () => { i++; show(); };
     function show() {
       Radio.setPtt(null); Radio.forget();
       if (i >= items.length) return finishPhase('f1', score);
@@ -402,13 +512,16 @@
     }
     /* --- parla --- */
     function speakItem(it) {
-      const letters = [...it.word], need = letters.map(c => IC[c].w);
-      let fails = 0, helps = 0, hint = false, mode = (SRC && !S.noVoice) ? 'voice' : 'chips', hit = null, heard = '', picked = [], msg = '', done = false, rec = null;
-      const pool = shuffle([...new Set(need.concat(shuffle(D.INTERCO.map(x => x.w).filter(w => !need.includes(w))).slice(0, 4)))]);
+      const letters = [...it.word], need = letters.map(c => IC[c].w), uniq = [...new Set(letters)];
+      let fails = 0, helps = 0, hint = false, mode = (ENGINE && !noVoice) ? 'voice' : 'chips', hit = null, heard = '', picked = [], msg = '', done = false, cap = null, busy = false, sttFails = 0;
+      /* fitxes: les correctes, 2 paraules falses amb la mateixa inicial per lletra i altres paraules INTERCO */
+      const pool = shuffle([...new Set([...need, ...uniq.flatMap(c => D.DECOY[c] || []), ...shuffle(D.INTERCO.map(x => x.w).filter(w => !need.includes(w))).slice(0, 4)])]);
       const sc = () => Math.max(0, val * (1 - .25 * fails - .3 * helps));
       const win = () => { done = true; score += sc(); marks[i] = fails ? 'ko' : 'ok'; Radio.setPtt(null); hit = letters.map(() => true); msg = fb('ok', `CECOS t’ha copiat: <b>${need.join(' · ')}</b>`); render(); nextBtn(next); };
       const lose = () => { done = true; marks[i] = 'ko'; mistake('F1', need.join(' '), heard || picked.join(' '), 'INTERCO ' + it.word); Radio.setPtt(null); hint = true; hit = null; msg = fb('ko', `Es lletreja així: <b>${need.join(' · ')}</b>`); render(); nextBtn(next); };
+      const toChips = why => { mode = 'chips'; hit = null; picked = []; Radio.setPtt(null); msg = why ? fb('info', why + ' Fes-ho amb les fitxes.') : ''; render(); };
       function render() {
+        const vOn = mode === 'voice' && Mic.on;
         app.innerHTML = frame(p, i, items.length, marks, `<div class="f1">
           <span class="mode-pill">${ic('mic')} Parla · ${mode === 'voice' ? 'per veu' : 'amb fitxes'}</span>
           <h2>Lletreja per ràdio</h2>
@@ -416,45 +529,55 @@
           <div class="tiles" aria-label="${esc(it.word)}">${letters.map((c, k) => {
             const cls = done && hit ? 'hit' : hit ? (hit[k] ? 'hit' : 'miss') : (mode === 'chips' && picked[k] ? 'filled' : '');
             const w = (hint || (hit && hit[k]) || done) ? need[k] : (mode === 'chips' && picked[k]) ? picked[k] : '';
-            return `<div class="tile ${cls}">${mode === 'chips' && picked[k] && !done ? `<button type="button" data-rm="${k}" aria-label="Treu ${esc(picked[k])}">` : ''}<span class="l">${esc(c)}</span><span class="w">${esc(w)}</span>${mode === 'chips' && picked[k] && !done ? '</button>' : ''}</div>`; }).join('')}</div>
-          ${mode === 'voice' && !done ? `<p class="ptt-hint">${ic('mic')} Mantén premut PARLA (o la barra espaiadora) i digues les paraules INTERCO, una per lletra.</p><p class="heard" id="heard">${heard ? 'CECOS ha sentit: «' + esc(heard) + '»' : ''}</p>` : ''}
-          ${mode === 'chips' && !done ? `<div class="chips" role="group" aria-label="Paraules INTERCO">${pool.map(w => `<button class="chip" type="button" data-w="${esc(w)}">${esc(w)}</button>`).join('')}</div>` : ''}
+            const rm = mode === 'chips' && picked[k] && !done && !hit;
+            return `<div class="tile ${cls}">${rm ? `<button type="button" data-rm="${k}" aria-label="Treu ${esc(picked[k])}">` : ''}<span class="l">${esc(c)}</span><span class="w">${esc(w)}</span>${rm ? '</button>' : ''}</div>`; }).join('')}</div>
+          ${mode === 'voice' && !done ? (vOn ? `<p class="ptt-hint">${ic('mic')} Mantén premut PARLA (o la barra espaiadora) i digues les paraules INTERCO, una per lletra.</p>
+              <div class="miclvl" aria-hidden="true"><span>Senyal del micròfon</span><i><b id="lvl"></b></i></div><p class="heard" id="heard">${busy ? 'CECOS està escoltant la gravació…' : heard ? 'CECOS ha sentit: «' + esc(heard) + '»' : ''}</p>`
+            : `<p class="muted">Per lletrejar amb la veu cal activar el micròfon. La gravació és temporal i s’elimina en continuar.</p><button class="btn" id="mic">${ic('mic')} Activa el micròfon</button>`) : ''}
+          ${mode === 'chips' && !done ? `<p class="muted">Tria la paraula INTERCO de cada lletra, en ordre. Atenció: hi ha paraules que no són de l’alfabet.</p><div class="chips" role="group" aria-label="Paraules">${pool.map(w => `<button class="chip" type="button" data-w="${esc(w)}">${esc(w)}</button>`).join('')}</div>` : ''}
           ${msg}
           <div class="actions">${done ? '' : `
             ${mode === 'chips' ? `<button class="btn" id="ok" ${picked.length < need.length ? 'disabled' : ''}>${ic('check')} Comprova</button>` : ''}
             <button class="btn ghost small" id="hp" ${hint ? 'disabled' : ''}>${ic('help')} Mostra les paraules</button><span class="help-cost">−30 %</span>
-            ${mode === 'voice' ? `<button class="btn ghost small" id="sw">Sense micròfon? Fes-ho amb fitxes</button>` : ''}`}</div></div>`);
+            ${mode === 'voice' ? `<button class="btn ghost small" id="sw">Sense micròfon? Fes-ho amb fitxes</button>` : ENGINE ? `<button class="btn ghost small" id="sv">${ic('mic')} Fes-ho amb la veu</button>` : ''}`}</div></div>`);
         if (done) return;
         $('#hp').onclick = () => { helps++; S.helps++; hint = true; render(); };
-        $('#sw') && ($('#sw').onclick = () => { mode = 'chips'; hit = null; msg = ''; Radio.setPtt(null); render(); });
+        $('#sw') && ($('#sw').onclick = () => { noVoice = true; toChips(''); });
+        $('#sv') && ($('#sv').onclick = () => { noVoice = false; mode = 'voice'; hit = null; msg = ''; render(); arm(); });
+        $('#mic') && ($('#mic').onclick = async () => { const r = await Mic.enable(); if (done) return; if (!r.ok) { msg = fb('info', esc(r.why) + ' També pots fer-ho amb fitxes.'); return render(); } msg = ''; render(); arm(); });
         if (mode === 'chips') {
-          $$('[data-w]').forEach(b => b.onclick = () => { if (picked.length < need.length) { picked.push(b.dataset.w); hit = null; render(); } });
-          $$('[data-rm]').forEach(b => b.onclick = () => { picked.splice(+b.dataset.rm, 1); hit = null; render(); });
+          $$('[data-w]').forEach(b => b.onclick = () => { if (hit) { hit = null; picked = []; } if (picked.length < need.length) { picked.push(b.dataset.w); render(); } });
+          $$('[data-rm]').forEach(b => b.onclick = () => { picked.splice(+b.dataset.rm, 1); render(); });
           $('#ok').onclick = () => {
             if (picked.every((w, k) => w === need[k])) return win();
             fails++; slip(); if (fails >= 4) return lose();
-            hit = picked.map((w, k) => w === need[k]); picked = []; msg = fb('ko', 'No és correcte: en verd, les lletres encertades. Torna-ho a provar.'); render();
+            hit = picked.map((w, k) => w === need[k]); msg = fb('ko', 'No és correcte: en verd, les lletres encertades. Torna a triar totes les paraules.'); render();
           };
         }
       }
-      const fallback = why => { S.noVoice = true; save(); mode = 'chips'; Radio.setPtt(null); msg = fb('info', why + ' Fes-ho amb les fitxes.'); render(); };
-      if (mode === 'voice') Radio.setPtt({
-        down() { Radio.mic(); Radio.caption('TX · …'); try { rec = listenOnce(); } catch { rec = null; } },
-        async up(held) {
-          if (!rec) return fallback('El navegador no pot reconèixer la veu.');
-          const r = await rec.stop(); rec = null; if (done) return;
-          if (['not-allowed', 'service-not-allowed', 'audio-capture'].includes(r.error)) return fallback('No hi ha accés al micròfon.');
-          if (r.error === 'network' || r.error === 'start') return fallback('El reconeixement de veu no està disponible ara.');
-          if (held < 500 || !r.alts.length) { msg = fb('info', 'No t’hem sentit. Mantén premut PARLA mentre dius totes les paraules.'); return render(); }
-          const best = r.alts.map(t => ({ t, m: matchSpell(t, letters) })).sort((a, b) => b.m.score - a.m.score)[0];
-          heard = best.t; hit = best.m.hit;
-          if (best.m.ok) return win();
-          fails++; slip(); if (fails >= 4) return lose();
-          msg = fb('ko', `CECOS no t’ha copiat (${best.m.score} de ${letters.length} lletres). <b>Repeteix</b> la paraula sencera.`); render();
-          Radio.play('rep', { caption: D.F2_REPEAT.text, remember: false });
-        },
-      });
-      render();
+      /* indicador de senyal mentre el micròfon està actiu */
+      const meter = setInterval(() => { const e = $('#lvl'); if (!$('.f1')) return clearInterval(meter); if (e) e.style.width = Math.min(100, Mic.level() * 260) + '%'; }, 60);
+      function arm() {
+        if (mode !== 'voice' || !Mic.on || done) return;
+        Radio.setPtt({
+          down() { Radio.caption('TX · …'); cap = capture(); },
+          async up(held) {
+            if (!cap || busy) return; const c = cap; cap = null; busy = true; $('#heard') && ($('#heard').textContent = 'CECOS està escoltant la gravació…');
+            const r = await c.stop(); busy = false; if (done || mode !== 'voice') return;
+            if (MIC_ERR.includes(r.error)) return toChips('El navegador ha blocat el micròfon.');
+            if (r.error) { sttFails++; if (sttFails >= 2) return toChips('El servei de transcripció no respon.'); msg = fb('info', 'La transcripció no ha respost. Torna-ho a provar.'); return render(); }
+            if (r.silent) { msg = fb('info', 'No arriba senyal del micròfon. Comprova que no està silenciat i que és el micròfon triat al navegador.'); return render(); }
+            if (held < 500 || !r.alts.length) { msg = fb('info', 'No t’hem entès. Mantén premut PARLA mentre dius totes les paraules, a poc a poc.'); return render(); }
+            const best = r.alts.map(t => ({ t, m: matchSpell(t, letters) })).sort((a, b) => b.m.score - a.m.score)[0];
+            heard = best.t; hit = best.m.hit;
+            if (best.m.ok) return win();
+            fails++; slip(); if (fails >= 4) return lose();
+            msg = fb('ko', `CECOS no t’ha copiat (${best.m.score} de ${letters.length} lletres). <b>Repeteix</b> la paraula sencera.`); render();
+            Radio.play('rep', { caption: D.F2_REPEAT.text, remember: false });
+          },
+        });
+      }
+      render(); arm();
     }
     show();
   }
@@ -637,51 +760,121 @@
     show();
   }
 
-  /* ========== F6 · SIMULADOR DE RÀDIO ========== */
+  /* ========== F6 · SIMULADOR DE RÀDIO (emissora de pràctiques) ========== */
   function F6() {
     const p = PHASES[5], scen = D.RADIO, txTotal = scen.reduce((a, s) => a + s.steps.filter(x => x.type === 'tx').length, 0);
-    const val = D.POINTS.f6 / txTotal; let si = 0, score = 0; const marks = [];
+    const val = D.POINTS.f6 / txTotal, rnd = n => Math.floor(Math.random() * n), pad = n => String(n).padStart(2, '0');
+    let si = 0, score = 0; const marks = [];
+    const R = { on: false, vol: 4, ch: 1 + rnd(16), sub: rnd(39) };   /* l'emissora conserva l'estat entre situacions */
     function scenario() {
       if (si >= scen.length) return finishPhase('f6', score);
-      const sc = scen[si]; let step = 0, sel = null, errors = 0, ended = false, note = ''; const log = [];
-      const render = () => {
-        const st = sc.steps[step], tx = !ended && st && st.type === 'tx' && !Radio.busy;
-        if (tx && !st._opts) st._opts = shuffle([st.ok, ...st.bad]);
-        app.innerHTML = frame(p, si, scen.length, marks, `<div class="radio-wrap">
-            <div><h2>${esc(sc.title)}</h2>
-              <p class="muted" style="margin:.3rem 0 1rem">Ets la unitat <b>${esc(sc.unit)}</b>. Parles amb CECOS pel canal del SEM.</p>
-              <div class="log" id="log" aria-live="polite">${log.map(m => `<div class="bubble ${m.k}${m.bad ? ' ko' : ''}"><b>${m.k === 'rx' ? 'CECOS' : m.k === 'tx' ? esc(sc.unit) : 'Avís'}</b>${esc(m.t)}</div>`).join('') || '<p class="muted">Esperant comunicació…</p>'}</div></div>
-            <div class="tx-panel">${ended ? `<p class="tx-task">Comunicació tancada.</p>` : tx ? `<p class="tx-task" id="txt-task">${esc(st.prompt)}</p>
-                <div class="tx-opts" role="radiogroup" aria-label="Què dius">${st._opts.map((o, k) => `<button type="button" role="radio" aria-checked="${sel === k}" class="tx-opt ${sel === k ? 'sel' : ''}" data-k="${k}">${esc(o)}</button>`).join('')}</div>
-                <p class="ptt-hint" style="margin-top:.8rem">${ic('mic')} Tria el missatge i mantén premut PARLA.</p>` : `<p class="tx-task">CECOS està parlant… escolta.</p>`}
-              ${note}</div></div><div class="actions"></div>`);
-        const L = $('#log'); L.scrollTop = L.scrollHeight;
-        $$('.tx-opt').forEach(b => b.onclick = () => { sel = +b.dataset.k; note = ''; render(); });
-        if (ended) nextBtn(() => { si++; scenario(); }, si + 1 < scen.length ? 'Següent situació' : 'Acaba la fase');
+      const sc = scen[si]; let step = 0, sel = null, errors = 0, ended = false, linked = false, note = '', cap = null, busy = false, blocked = false, rxNow = false, txNow = false; const log = [];
+      let T; do { T = { ch: 1 + rnd(16), sub: 1 + rnd(38) }; } while (T.ch === R.ch && T.sub === R.sub);
+      const tuned = () => R.on && R.ch === T.ch && R.sub === T.sub;
+      app.innerHTML = frame(p, si, scen.length, marks, `<div class="radio-wrap">
+          <div><h2>${esc(sc.title)}</h2>
+            <p class="muted" style="margin:.3rem 0 .8rem">Ets la unitat <b>${esc(sc.unit)}</b>.</p>
+            <div class="sheet" id="sheet">${ic('file')}<span>Full de guàrdia · CECOS treballa al <b>canal <span class="code" id="t-ch">${pad(T.ch)}</span></b>, <b>subcanal <span class="code" id="t-sub">${pad(T.sub)}</span></b></span></div>
+            <div class="log" id="log" aria-live="polite"></div><div id="txp"></div></div>
+          <div class="mx" id="mx" role="group" aria-label="Emissora de pràctiques">
+            <span class="mx-ant" aria-hidden="true"></span>
+            <div class="mx-top">
+              <button type="button" class="mx-pwr" id="mx-pwr" aria-pressed="false" aria-label="Encén o apaga l’emissora">${ic('power')}</button>
+              <div class="mx-vol"><button type="button" id="mx-vd" aria-label="Baixa el volum">−</button><span>VOL</span><button type="button" id="mx-vu" aria-label="Puja el volum">+</button></div>
+              <span class="mx-led" id="mx-led" aria-hidden="true"></span></div>
+            <div class="mx-lcd" id="mx-lcd"><div class="mx-row"><span id="mx-sig">▂▄▆</span><span id="mx-st">—</span><span>▮▮▮</span></div>
+              <div class="mx-main"><span>CH <b id="mx-ch">--</b></span><span>SUB <b id="mx-sub">--</b></span></div>
+              <canvas id="mx-wave" aria-hidden="true"></canvas><div class="mx-row"><span>VOL <span id="mx-volv"></span></span><span>PMR 446</span></div></div>
+            <div class="mx-keys">
+              <div><span>CANAL</span><button type="button" id="mx-cd" aria-label="Canal anterior">${ic('down')}</button><button type="button" id="mx-cu" aria-label="Canal següent">${ic('up')}</button></div>
+              <div><span>SUBCANAL · CTCSS</span><button type="button" id="mx-sd" aria-label="Subcanal anterior">${ic('down')}</button><button type="button" id="mx-su" aria-label="Subcanal següent">${ic('up')}</button></div></div>
+            <button type="button" class="mx-ptt" id="mx-ptt">${ic('mic')}<span>PTT<small>mantén premut · espai</small></span></button>
+            <span class="mx-grille" aria-hidden="true"></span></div></div><div class="actions"></div>`);
+      Radio.show('device', $('#mx-wave'));
+      Radio.onState(st => { rxNow = st === 'rx'; txNow = st === 'tx'; device(); });
+      const device = () => {
+        const mx = $('#mx'); if (!mx) return;
+        mx.classList.toggle('on', R.on); mx.classList.toggle('link', tuned()); mx.classList.toggle('rx', R.on && rxNow && tuned()); mx.classList.toggle('tx', R.on && txNow);
+        $('#mx-pwr').setAttribute('aria-pressed', R.on);
+        $('#mx-ch').textContent = R.on ? pad(R.ch) : '--'; $('#mx-sub').textContent = R.on ? (R.sub ? pad(R.sub) : 'OF') : '--';
+        $('#mx-st').textContent = !R.on ? '' : txNow ? 'TX' : (rxNow && tuned()) ? 'RX' : tuned() ? 'CECOS' : 'SENSE ENLLAÇ';
+        $('#mx-volv').textContent = '▮'.repeat(R.vol) + '▯'.repeat(8 - R.vol);
+        $('#mx-ptt').classList.toggle('down', txNow);
+        Radio.setVol(R.on ? R.vol / 8 * 1.1 : 0);
       };
-      const advance = async () => {
+      const panel = () => {
+        const L = $('#log'); if (!L) return;
+        L.innerHTML = log.map(m => `<div class="bubble ${m.k}${m.bad ? ' ko' : ''}"><b>${m.k === 'rx' ? 'CECOS' : m.k === 'tx' ? esc(sc.unit) : 'Avís'}</b>${esc(m.t)}</div>`).join('') || `<p class="muted">${linked ? 'Esperant comunicació…' : 'Sense enllaç. Engega l’emissora i sintonitza el canal i el subcanal de CECOS.'}</p>`;
+        L.scrollTop = L.scrollHeight;
+        const st = sc.steps[step], tx = linked && !ended && st && st.type === 'tx' && !rxNow, voice = ENGINE && !st?.manual;
+        if (tx && !st._opts) st._opts = shuffle([st.ok, ...st.bad]);
+        $('#txp').innerHTML = `<div class="tx-panel">${ended ? `<p class="tx-task">Comunicació tancada.</p>` : !linked ? `<p class="tx-task">1. Engega l’emissora · 2. Posa el canal i el subcanal del full de guàrdia · 3. Puja el volum</p>` : tx ? `
+            <p class="tx-task" id="txt-task">${esc(st.prompt)}</p>
+            <div class="tx-opts" role="radiogroup" aria-label="Què dius">${st._opts.map((o, k) => `<button type="button" role="radio" aria-checked="${sel === k}" class="tx-opt ${sel === k ? 'sel' : ''}" data-k="${k}">${esc(o)}</button>`).join('')}</div>
+            <p class="ptt-hint" style="margin-top:.8rem">${ic('mic')} ${voice && Mic.on ? 'Digues el missatge correcte mantenint premut el PTT. També pots triar-lo amb un clic i prémer el PTT.' : 'Tria el missatge amb un clic i mantén premut el PTT.'}</p>
+            ${voice && !Mic.on ? `<button class="btn ghost small" id="mic" style="margin-top:.6rem">${ic('mic')} Activa el micròfon per dir-ho amb la veu</button>` : ''}
+            ${busy ? '<p class="heard">CECOS està escoltant la gravació…</p>' : ''}` : `<p class="tx-task">${rxNow ? 'CECOS està parlant… escolta.' : 'Espera la comunicació de CECOS.'}</p>`}
+            ${note}</div>`;
+        $$('.tx-opt').forEach(b => b.onclick = () => { sel = sel === +b.dataset.k ? null : +b.dataset.k; note = ''; panel(); });
+        $('#mic') && ($('#mic').onclick = async () => { const r = await Mic.enable(); note = r.ok ? '' : fb('info', esc(r.why) + ' Pots continuar triant el missatge amb un clic.'); panel(); });
+        if (ended && !$('#nx')) nextBtn(() => { si++; scenario(); }, si + 1 < scen.length ? 'Següent situació' : 'Acaba la fase');
+      };
+      const wait = ok => new Promise(res => { const t = setInterval(() => { if (!$('#mx')) { clearInterval(t); res(false); } else if (ok()) { clearInterval(t); res(true); } }, 250); });
+      let adv = false;
+      const advance = async () => { if (adv) return; adv = true; try { await run(); } finally { adv = false; } };
+      const run = async () => {
         while (step < sc.steps.length && sc.steps[step].type === 'rx') {
-          const st = sc.steps[step]; log.push({ k: 'rx', t: st.text }); const pr = Radio.play(`${sc.id}-${step}`, { caption: st.text }); render();
-          await pr; if (!$('#log')) return; step++; await new Promise(r => setTimeout(r, 350));
+          if (!(await wait(tuned))) return;
+          const st = sc.steps[step]; log.push({ k: 'rx', t: st.text }); const pr = Radio.play(`${sc.id}-${step}`, { caption: st.text }); rxNow = true; panel(); device();
+          await pr; if (!$('#mx')) return; rxNow = false; step++; await new Promise(r => setTimeout(r, 350));
         }
-        if (step >= sc.steps.length) { ended = true; if (!marks[si]) marks[si] = 'ok'; Radio.setPtt(null); note = fb('ok', `Comunicació «${esc(sc.title)}» tancada.`); return render(); }
-        sel = null; errors = 0; render();
+        if (step >= sc.steps.length) { ended = true; if (!marks[si]) marks[si] = 'ok'; Radio.setPtt(null); note = fb('ok', `Comunicació «${esc(sc.title)}» tancada.`); panel(); return device(); }
+        sel = null; errors = 0; panel(); device();
+      };
+      /* controls de l'emissora */
+      const change = fn => { const was = tuned(); fn(); Radio.key(); device();
+        if (tuned() && !was) { Radio.tune(); if (!linked) { linked = true; note = ''; log.push({ k: 'sys', t: `Enllaç amb CECOS: canal ${pad(T.ch)}, subcanal ${pad(T.sub)}.` }); panel(); setTimeout(advance, 900); } }
+        else if (R.on && !tuned()) Radio.squelch();
+        if (!linked) { note = R.on && R.vol === 0 ? fb('info', 'El volum és a zero: no sentiràs CECOS.') : ''; panel(); } };
+      $('#mx-pwr').onclick = () => change(() => { R.on = !R.on; });
+      const key = (id, fn) => { $(id).onclick = () => { if (!R.on) return; change(fn); }; };
+      key('#mx-vu', () => { R.vol = Math.min(8, R.vol + 1); }); key('#mx-vd', () => { R.vol = Math.max(0, R.vol - 1); });
+      key('#mx-cu', () => { R.ch = R.ch % 16 + 1; }); key('#mx-cd', () => { R.ch = (R.ch + 14) % 16 + 1; });
+      key('#mx-su', () => { R.sub = (R.sub + 1) % 39; }); key('#mx-sd', () => { R.sub = (R.sub + 38) % 39; });
+      const pb = $('#mx-ptt'); pb.addEventListener('pointerdown', e => { pb.setPointerCapture(e.pointerId); Radio.pttDown(e); });
+      ['pointerup', 'pointercancel'].forEach(ev => pb.addEventListener(ev, () => Radio.pttUp())); pb.addEventListener('contextmenu', e => e.preventDefault());
+      /* resolució d'un missatge dit o triat */
+      const resolve = said => {
+        const st = sc.steps[step];
+        if (said === st.ok) { score += itemScore(val, Math.min(errors, 2), 0); if (errors) marks[si] = 'ko'; log.push({ k: 'tx', t: said }); note = fb('ok', esc(st.why)); step++; sel = null; panel(); return setTimeout(advance, 700); }
+        errors++; slip(st.ok); log.push({ k: 'tx', t: said, bad: true });
+        if (errors >= 2) { marks[si] = 'ko'; mistake('F6', st.ok, said, sc.title); log.push({ k: 'sys', t: 'Correcte seria: «' + st.ok + '»' }); note = fb('ko', esc(st.why)); step++; sel = null; panel(); return setTimeout(advance, 1200); }
+        sel = null; note = fb('ko', 'CECOS no ho entén així. Torna-ho a provar: ' + esc(st.why.split('.')[0]) + '.'); panel();
       };
       Radio.setPtt({
-        stepped() { errors += .5; slip('3.13'); mistake('F6', '3.13', 'PARLA durant RX', 'ha trepitjat CECOS'); log.push({ k: 'sys', t: '3.13 · Fer ús correcte de l’equip de ràdio: no premis PARLA mentre parla CECOS.' }); render(); },
-        down() { Radio.mic(); },
-        up(held) {
-          const st = sc.steps[step]; if (ended || !st || st.type !== 'tx') return;
-          if (sel === null) { note = fb('info', 'Primer tria què diràs i després prem PARLA.'); return render(); }
-          if (held < 600) { errors += .5; note = fb('ko', 'Missatge tallat: has deixat anar PARLA massa aviat. Mantén-lo premut mentre parles.'); return render(); }
-          const said = st._opts[sel];
-          if (said === st.ok) { score += itemScore(val, Math.min(errors, 2), 0); if (errors) marks[si] = 'ko'; log.push({ k: 'tx', t: said }); note = fb('ok', esc(st.why)); step++; sel = null; render(); return setTimeout(advance, 700); }
-          errors++; slip(st.ok); log.push({ k: 'tx', t: said, bad: true });
-          if (errors >= 2) { marks[si] = 'ko'; mistake('F6', st.ok, said, sc.title); log.push({ k: 'sys', t: 'Correcte seria: «' + st.ok + '»' }); note = fb('ko', esc(st.why)); step++; sel = null; render(); return setTimeout(advance, 1200); }
-          note = fb('ko', 'CECOS no ho entén així. Torna-ho a provar: ' + esc(st.why.split('.')[0]) + '.'); render();
+        stepped() { if (!tuned()) return; errors += .5; slip('3.13'); mistake('F6', '3.13', 'PTT durant RX', 'ha trepitjat CECOS'); log.push({ k: 'sys', t: '3.13 · Fer ús correcte de l’equip de ràdio: no premis el PTT mentre parla CECOS.' }); panel(); },
+        down() { blocked = !tuned(); const st = sc.steps[step]; cap = null;
+          if (!blocked && linked && !ended && st && st.type === 'tx' && sel === null && ENGINE && Mic.on && !st.manual) cap = capture(); },
+        async up(held) {
+          const st = sc.steps[step];
+          if (blocked) { note = fb('info', R.on ? 'Sense enllaç amb CECOS: revisa el canal i el subcanal del full de guàrdia.' : 'L’emissora està apagada.'); return panel(); }
+          if (ended || !linked || !st || st.type !== 'tx' || busy) return;
+          if (cap) {
+            const c = cap; cap = null; busy = true; panel(); const r = await c.stop(); busy = false; if (!$('#mx') || sc.steps[step] !== st) return;
+            if (r.error) { note = fb('info', 'La transcripció no ha respost. Tria el missatge amb un clic i prem el PTT.'); return panel(); }
+            if (r.silent) { note = fb('info', 'No arriba senyal del micròfon. Comprova’l o tria el missatge amb un clic.'); return panel(); }
+            if (held < 600 || !r.alts.length) { note = fb('info', 'No us hem entès. Manteniu premut el PTT mentre dieu tot el missatge.'); return panel(); }
+            const best = r.alts.map(t => ({ t, m: matchSay(t, st._opts) })).sort((a, b) => Math.max(...b.m.scores) - Math.max(...a.m.scores))[0];
+            if (best.m.idx < 0) { note = fb('info', `CECOS no us copia. Heu dit: «${esc(best.t)}». Repetiu el missatge sencer o trieu-lo amb un clic.`); panel(); return Radio.play('rep', { caption: D.F2_REPEAT.text, remember: false }); }
+            return resolve(st._opts[best.m.idx]);
+          }
+          if (sel === null) { note = fb('info', st.manual ? 'En aquest pas tria la resposta amb un clic i després prem el PTT.' : (ENGINE && Mic.on ? 'No s’ha gravat res. Torna-ho a provar.' : 'Primer tria què diràs i després prem el PTT.')); return panel(); }
+          if (held < 600) { errors += .5; note = fb('ko', 'Missatge tallat: has deixat anar el PTT massa aviat.'); return panel(); }
+          resolve(st._opts[sel]);
         },
       });
-      render(); setTimeout(advance, 600);
+      device(); panel();
+      if (tuned()) { linked = true; setTimeout(advance, 600); }
     }
     scenario();
   }

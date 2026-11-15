@@ -44,6 +44,14 @@ with sync_playwright() as p:
         pg.fill('#ans', ans); pg.click('#ok'); nxt()
     for k in range(4):
         pg.wait_for_selector('.tiles'); word = ''.join(e.inner_text().strip() for e in pg.query_selector_all('.tile .l'))
+        if k == 1:   # sense micròfon: fitxes amb paraules falses
+            pg.click('#sw'); pg.wait_for_selector('.chip'); shot('08b_f1_fitxes')
+            n_decoy = len(pg.query_selector_all('.chip')) - len(set(word))
+            assert n_decoy >= len(set(word)) * 2, 'falten fitxes falses'
+            for c in word: pg.click(f'.chip[data-w="{W[c]}"]'); pg.wait_for_timeout(30)
+            pg.click('#ok'); nxt(); continue
+        if pg.query_selector('#sv'): pg.click('#sv')
+        if pg.query_selector('#mic'): pg.click('#mic'); pg.wait_for_selector('#lvl')
         if k == 0:
             shot('06_f1_parla'); D("window.__say='alfa bravo'"); ptt(); pg.wait_for_timeout(500); shot('07_f1_repeteix'); pg.wait_for_timeout(2500)
         D(f"window.__say={json.dumps(' '.join(W[c] for c in word).lower().replace('echo', 'eco').replace('mike', 'maik'))}"); ptt()
@@ -100,32 +108,53 @@ with sync_playwright() as p:
         nxt()
     nxt()
 
-    # F6
-    pg.click('#go'); pg.wait_for_timeout(300); n = 0
-    for s in range(4):
+    # F6 · emissora
+    pg.click('#go'); pg.wait_for_timeout(400); n = 0
+    def mptt(ms=800):
+        box = pg.query_selector('#mx-ptt').bounding_box(); pg.mouse.move(box['x'] + 40, box['y'] + 20); pg.mouse.down(); pg.wait_for_timeout(ms); pg.mouse.up(); pg.wait_for_timeout(500)
+    for s_ in range(4):
+        pg.wait_for_selector('#mx')
+        if s_ == 0:
+            shot('17_f6_apagada'); mptt(700); assert 'apagada' in pg.inner_text('#txp')
+            pg.click('#mx-pwr'); pg.wait_for_timeout(200)
+        tch, tsub = pg.inner_text('#t-ch'), pg.inner_text('#t-sub')
+        for _ in range(16):
+            if pg.inner_text('#mx-ch') == tch: break
+            pg.click('#mx-cu')
+        if s_ == 0: shot('17b_f6_sense_enllac')
+        for _ in range(39):
+            if pg.inner_text('#mx-sub') == tsub: break
+            pg.click('#mx-su')
+        assert pg.inner_text('#mx-ch') == tch and pg.inner_text('#mx-sub') == tsub
         while True:
             pg.wait_for_selector('.tx-opt, #nx', timeout=60000)
             if pg.query_selector('#nx'): break
             task = pg.inner_text('#txt-task').strip()
-            ok = D(f'(()=>{{for(const s of DATA.RADIO)for(const t of s.steps)if(t.prompt==={json.dumps(task)})return t.ok}})()')
-            for e in pg.query_selector_all('.tx-opt'):
-                if e.inner_text().strip() == ok: e.click(); break
-            if n == 0:
-                box = pg.query_selector('#ptt').bounding_box(); pg.mouse.move(box['x'] + 40, box['y'] + 20); pg.mouse.down(); pg.wait_for_timeout(700); shot('17_f6_tx'); pg.mouse.up(); pg.wait_for_timeout(1500); shot('18_f6_rx')
-            else: ptt(750)
+            st = D(f'(()=>{{for(const s of DATA.RADIO)for(const t of s.steps)if(t.prompt==={json.dumps(task)})return {{ok:t.ok,manual:!!t.manual}}}})()')
+            if n % 2 == 0 and not st['manual']:      # per veu (reconeixement simulat)
+                if pg.query_selector('#mic'): pg.click('#mic'); pg.wait_for_timeout(300)
+                D(f"window.__say={json.dumps(st['ok'].lower().replace('727', 'set-cents vint-i-set').replace('3.3', 'tres punt tres'))}")
+                if n == 0: box = pg.query_selector('#mx-ptt').bounding_box(); pg.mouse.move(box['x'] + 40, box['y'] + 20); pg.mouse.down(); pg.wait_for_timeout(750); shot('18_f6_tx'); pg.mouse.up(); pg.wait_for_timeout(1600); shot('19_f6_rx')
+                else: mptt(); pg.wait_for_timeout(1500)
+            else:                                      # sense micròfon: clic + PTT
+                D("window.__say=''")
+                for e in pg.query_selector_all('.tx-opt'):
+                    if e.inner_text().strip() == st['ok']: e.click(); break
+                mptt(750)
             n += 1
+        if s_ == 0: shot('19b_f6_final')
         nxt()
     pg.wait_for_selector('#res'); pg.click('#res'); pg.wait_for_selector('.grade'); pg.wait_for_timeout(1200)
-    pg.screenshot(path=f'{OUT}/19_resultats.png', full_page=True)
+    pg.screenshot(path=f'{OUT}/20_resultats.png', full_page=True)
     with pg.expect_download() as dl: pg.click('#pdf')
     dl.value.save_as(f'{OUT}/informe.pdf')
     state = D('JSON.parse(localStorage.getItem("codi3-tes-v2"))')
-    print('TOTAL', sum(p['score'] for p in state['phases'].values()), {k: v['score'] for k, v in state['phases'].items()}, 'errs', state['errs'], state['verify'])
+    print('TOTAL', sum(p['score'] for p in state['phases'].values()), {k: v['score'] for k, v in state['phases'].items()}, 'errs', state['errs'], state['verify'], [m for m in state['mistakes']], state['slips'])
 
     m = b.new_context(viewport={'width': 390, 'height': 844}, device_scale_factor=2, is_mobile=True, has_touch=True); m.add_init_script(INIT)
-    mp = m.new_page(); mp.goto(URL); mp.evaluate('localStorage.clear()'); mp.reload(); mp.screenshot(path=f'{OUT}/20_mobil_login.png')
+    mp = m.new_page(); mp.goto(URL); mp.evaluate('localStorage.clear()'); mp.reload(); mp.screenshot(path=f'{OUT}/21_mobil_login.png')
     st = dict(state); st['phases'] = {'f1': state['phases']['f1']}
-    mp.evaluate(f'localStorage.setItem("codi3-tes-v2", {json.dumps(json.dumps(st))})'); mp.reload(); mp.wait_for_selector('.phase-grid'); mp.screenshot(path=f'{OUT}/21_mobil_tauler.png')
-    mp.tap('[data-intro=f2]'); mp.wait_for_selector('#go'); mp.tap('#go'); mp.wait_for_selector('.codecard'); mp.wait_for_timeout(1200); mp.screenshot(path=f'{OUT}/22_mobil_f2.png')
+    mp.evaluate(f'localStorage.setItem("codi3-tes-v2", {json.dumps(json.dumps(st))})'); mp.reload(); mp.wait_for_selector('.phase-grid'); mp.screenshot(path=f'{OUT}/22_mobil_tauler.png')
+    mp.tap('[data-intro=f2]'); mp.wait_for_selector('#go'); mp.tap('#go'); mp.wait_for_selector('.codecard'); mp.wait_for_timeout(1200); mp.screenshot(path=f'{OUT}/23_mobil_f2.png')
     b.close()
 print('JS errors:', errors or 'cap')

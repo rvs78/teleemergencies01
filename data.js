@@ -113,6 +113,12 @@ window.DATA = (function () {
     W: ['whisky', 'whiskey', 'uiski', 'guiski', 'wiski'], X: ['x-ray', 'xray', 'x ray', 'eksrey', 'ex rei', 'ecs rei', 'raigs x', 'x rai', 'eks rei'],
     Y: ['yankee', 'yanki', 'ianqui', 'yanqui', 'ianki'], Z: ['zulu', 'sulu', 'zulú'] };
 
+  /* Paraules que NO són INTERCO (mateixa inicial), per a les fitxes sense micròfon */
+  const DECOY = { A: ['Antoni', 'Àfrica'], B: ['Barcelona', 'Beta'], C: ['Carme', 'Carles'], D: ['Dolors', 'Dinamarca'], E: ['Enric', 'Europa'], F: ['França', 'Fórmula'],
+    G: ['Girona', 'Gamma'], H: ['Història', 'Hèlix'], I: ['Itàlia', 'Ibèria'], J: ['Jaume', 'Japó'], K: ['Kàiser', 'Karate'], L: ['Lleida', 'Londres'], M: ['Maria', 'Madrid'],
+    N: ['Nàpols', 'Nord'], 'Ñ': ['Ñandú', 'Ñu'], O: ['Oriol', 'Omega'], P: ['Pere', 'París'], Q: ['Química', 'Quart'], R: ['Ramon', 'Roma'], S: ['Sabadell', 'Sàhara'],
+    T: ['Tarragona', 'Tigre'], U: ['Urgell', 'Univers'], V: ['València', 'Vic'], W: ['Washington', 'Wagner'], X: ['Xàtiva', 'Xilòfon'], Y: ['York', 'Yak'], Z: ['Zamora', 'Zebra'] };
+
   /* ---------- Fase 3 · Escenes il·lustrades ----------
      img: assets/img/<id>.webp · prompt: escena per a Seedream (anglès)
      desc: el que llegeix l'alumnat · opts: 3 distractors plausibles */
@@ -261,7 +267,7 @@ window.DATA = (function () {
       { type: 'rx', text: 'Servei, 3.23 camió-cotxe Ronda de Dalt, alçada hospital Vall d’Hebron. El 3.21 el passem per l’embarcat.', say: 'Servei, tres punt vint-i-tres, camió-cotxe, Ronda de Dalt, alçada hospital Vall d’Hebron. El tres punt vint-i-u el passem per l’embarcat.' },
       { type: 'tx', prompt: 'Confirmeu que ho heu entès.', ok: 'Rebut.', bad: ['3.23 rebut, però on és?', 'Endavant.'], why: '«Rebut» confirma el missatge. La localització (3.21) arriba per l’embarcat.' },
       { type: 'rx', text: 'Bravo 727 de CECOS. Ampliem 3.5 amb diferents alertants en el 3.21.', say: 'Bravo set-cents vint-i-set de CECOS. Ampliem tres punt cinc amb diferents alertants en el tres punt vint-i-u.' },
-      { type: 'tx', prompt: 'Què us acaben de dir?', ok: 'Rebut CECOS (hi ha més informació de la situació: diversos alertants al lloc).', bad: ['Rebut CECOS (cal anar a un altre lloc).', 'Rebut CECOS (s’anul·la el servei).'], why: '3.5 = informació de la situació; 3.21 = localització.' },
+      { type: 'tx', manual: true, prompt: 'Què us acaben de dir?', ok: 'Rebut CECOS (hi ha més informació de la situació: diversos alertants al lloc).', bad: ['Rebut CECOS (cal anar a un altre lloc).', 'Rebut CECOS (s’anul·la el servei).'], why: '3.5 = informació de la situació; 3.21 = localització.' },
     ] },
     { id: 'r3', title: 'Sol·licitud de trasllat', unit: 'Bravo 727', steps: [
       { type: 'tx', prompt: 'Heu valorat un pacient amb un traumatisme a la cama. Truqueu CECOS.', ok: 'CECOS de la Bravo 727.', bad: ['Bravo 727 de CECOS.', 'CECOS, endavant.'], why: 'Destinatari + «de» + qui crida.' },
@@ -282,6 +288,6 @@ window.DATA = (function () {
 
   const POINTS = { f1: 150, f2: 150, f3: 200, f4: 150, f5: 100, f6: 250 };
 
-  return { CODES, FAMILIES, INTERCO, SPELL, LISTEN, HEAR, SCENES, F2, F2_REPEAT, SEQUENCES, DECODE, RADIO, POINTS,
+  return { CODES, FAMILIES, INTERCO, SPELL, LISTEN, HEAR, DECOY, SCENES, F2, F2_REPEAT, SEQUENCES, DECODE, RADIO, POINTS,
     byCode: Object.fromEntries(CODES.map(c => [c.code, c])) };
 })();

@@ -22,9 +22,22 @@ Activitat en línia individual de **MP0060 Teleemergències** (CFGM Emergències
 
 5. **Resultats** amb gràfiques i **informe PDF** amb codi de verificació per lliurar a Classroom.
 
-### Reconeixement de veu (F1)
+### Veu de l'alumnat (F1 i F6)
 
-Fa servir la Web Speech API del navegador en català (`ca-ES`): funciona a **Chrome i Edge** amb connexió i permís de micròfon. La coincidència és aproximada (accepta «eco/echo», «maik/mike»…; vegeu `HEAR` a `data.js`). Sense micròfon o en un navegador no compatible, la mateixa activitat es fa amb fitxes.
+Quan l'alumne manté premut PARLA/PTT, el navegador **grava un àudio temporal** (només a la memòria), el transcriu, el compara amb el text esperat i **l'elimina**: no es desa ni al dispositiu ni enlloc. Hi ha un indicador de senyal per comprovar que el micròfon funciona.
+
+La transcripció es pot fer de dues maneres (`config.js`):
+
+| `stt` a `config.js` | Com es transcriu | Requisits |
+|---|---|---|
+| buit (per defecte) | Reconeixement de veu del navegador, en català | Chrome o Edge, amb connexió |
+| adreça del servei | El WAV temporal s'envia al servei de `worker/` (ElevenLabs Scribe via OpenRouter) | Desplegar el Worker amb una clau pròpia; vegeu `worker/README.md` |
+
+**Sense micròfon** tot és jugable: a la F1 es trien fitxes (amb paraules falses de la mateixa inicial barrejades) i a la F6 es tria el missatge amb un clic i es prem el PTT.
+
+A la F6 l'alumne fa servir una **emissora de pràctiques** (encesa, volum, canal, subcanal CTCSS i PTT): ha d'engegar-la i sintonitzar el canal i el subcanal de CECOS del full de guàrdia abans de poder comunicar-se.
+
+Proves: `tests/e2e.py` (partida completa amb reconeixement simulat) i `tests/real_voice.py` (cadena real: micròfon simulat amb un WAV → gravació → servei de transcripció → comparació; requereix `tests/stt_proxy.py`).
 
 ## Recursos generats amb IA (pre-generats, cap clau al navegador)
 
