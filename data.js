@@ -88,22 +88,30 @@ window.DATA = (function () {
     ['X', 'X-Ray', 'Eksrey'], ['Y', 'Yankee', 'Yanki'], ['Z', 'Zulú', 'Zulú'],
   ].map(([l, w, p]) => ({ l, w, p }));
 
-  /* Fase 1 · A: lletreja (arrossega paraules INTERCO en ordre) */
-  const SPELL = [
-    { word: 'SOLER', ctx: 'Cognom de l’alertant' },
-    { word: 'PUIG', ctx: 'Cognom del pacient' },
-    { word: 'B727', ctx: 'Indicatiu de la unitat' },
-    { word: 'GAUDÍ', ctx: 'Nom del carrer (Av. de Gaudí)', strip: true },
-    { word: 'KTP', ctx: 'Lletres de la matrícula 4521 KTP' },
-    { word: 'NÚRIA', ctx: 'Nom de la filla que ha trucat', strip: true },
-  ];
-  /* Fase 1 · B: escolta i escriu */
+  /* Fase 1 · A: escolta (CECOS lletreja; l'alumne escriu). «say» = text que es locuta. */
   const LISTEN = [
-    { id: 'l1', answer: 'VALL', say: 'Víctor. Alfa. Lima. Lima.' },
-    { id: 'l2', answer: 'HOSPITAL', say: 'Hotel. Oscar. Sierra. Papa. India. Tango. Alfa. Lima.' },
-    { id: 'l3', answer: 'MAR', say: 'Mike. Alfa. Romeo.' },
-    { id: 'l4', answer: 'B749', say: 'Bravo. Set. Quatre. Nou.' },
+    { id: 'l1', answer: 'DEA', ctx: 'Material', say: 'Delta. Eko. Alfa.' },
+    { id: 'l2', answer: 'POLS', ctx: 'Constant vital', say: 'Papa. Òscar. Lima. Sierra.' },
+    { id: 'l3', answer: 'BASE', ctx: 'Lloc', say: 'Bravo. Alfa. Sierra. Eko.' },
+    { id: 'l4', answer: 'FERIT', ctx: 'Pacient', say: 'Fòxtrot. Eko. Romeo. Índia. Tango.' },
+    { id: 'l5', answer: 'METGE', ctx: 'Professional', say: 'Maik. Eko. Tango. Golf. Eko.' },
+    { id: 'l6', answer: 'SANG', ctx: 'Valoració', say: 'Sierra. Alfa. Novèmber. Golf.' },
   ];
+  /* Fase 1 · B: parla (surt una paraula de la professió i l'alumne la lletreja per veu) */
+  const SPELL = [
+    { word: 'SEM', ctx: 'Sistema d’Emergències Mèdiques' }, { word: 'TES', ctx: 'Tècnic en emergències sanitàries' },
+    { word: 'CECOS', ctx: 'Central de coordinació sanitària' }, { word: 'OXIGEN', ctx: 'Material de l’ambulància' },
+    { word: 'GUANTS', ctx: 'Protecció' }, { word: 'LLITERA', ctx: 'Material de trasllat' },
+    { word: 'TRIATGE', ctx: 'Classificació de ferits' }, { word: 'COLLARET', ctx: 'Immobilització cervical' },
+  ];
+  /* Variants que pot retornar el reconeixement de veu per a cada paraula INTERCO */
+  const HEAR = { A: ['alfa', 'alpha', 'alba'], B: ['bravo', 'brabo'], C: ['charlie', 'charli', 'xarli', 'txarli', 'xarly', 'charly'], D: ['delta'],
+    E: ['echo', 'eko', 'eco', 'ecco'], F: ['foxtrot', 'fox trot', 'fostrot', 'foxtrott'], G: ['golf', 'golfo'], H: ['hotel', 'jotel', 'otel'],
+    I: ['india'], J: ['juliett', 'juliet', 'yuliet', 'julieta', 'juliette'], K: ['kilo', 'quilo'], L: ['lima'], M: ['mike', 'maik', 'mai', 'maic', 'mic'],
+    N: ['november', 'nouvember', 'novembre', 'novenber'], 'Ñ': ['nono', 'ñoño'], O: ['oscar'], P: ['papa'], Q: ['quebec', 'kebek', 'quebek'],
+    R: ['romeo', 'romeu'], S: ['sierra', 'serra'], T: ['tango'], U: ['uniform', 'iuniform', 'uniforme', 'iuniforme'], V: ['victor', 'bictor'],
+    W: ['whisky', 'whiskey', 'uiski', 'guiski', 'wiski'], X: ['x-ray', 'xray', 'x ray', 'eksrey', 'ex rei', 'ecs rei', 'raigs x', 'x rai', 'eks rei'],
+    Y: ['yankee', 'yanki', 'ianqui', 'yanqui', 'ianki'], Z: ['zulu', 'sulu', 'zulú'] };
 
   /* ---------- Fase 3 · Escenes il·lustrades ----------
      img: assets/img/<id>.webp · prompt: escena per a Seedream (anglès)
@@ -171,10 +179,36 @@ window.DATA = (function () {
       prompt: 'the two technicians sitting quietly on the back step of a parked ambulance, heads lowered, one placing a supportive hand on the other’s shoulder, soft evening light, calm and respectful mood' },
   ];
 
-  /* ---------- Fase 2 · Classificació (es mostren 12 a l'atzar) ---------- */
-  const CLASSIFY_POOL = ['3.0', '3.01', '3.02', '3.8', '3.2', '3.3', '3.6', '3.9', '3.16', '3.17', '3.62', '3.60',
-    '3.4', '3.5', '3.35', '3.50', '3.51', '3.52', '3.21', '3.7', '3.70', '3.14', '3.18', '3.19', '3.73',
-    '3.23', '3.25', '3.28', '3.29', '3.30', '3.31', '3.33', '3.71', '3.1 S', '3.13', '3.20', '3.40'];
+  /* ---------- Fase 2 · Famílies: frase de ràdio (ctx/say), exemple, 2 codis relacionats i imatge realista ---------- */
+  const F2 = [
+    { code: "3.0", ctx: "CECOS de la Bravo 727: 3.0 al centre comercial, iniciem RCP.", say: "CECOS de la Bravo set-cents vint-i-set: tres punt zero al centre comercial, iniciem RCP.", ex: "Un home cau a terra, no respon i no respira. L’equip inicia la RCP i col·loca el DEA.", rel: ["3.01", "3.03"], prompt: "two paramedics performing CPR on a man lying on the floor of a shopping centre, automated external defibrillator open beside them" },
+    { code: "3.01", ctx: "CECOS de la Bravo 727: 3.01, el pacient recupera pols.", say: "CECOS de la Bravo set-cents vint-i-set: tres punt zero u, el pacient recupera pols.", ex: "Després de la descàrrega del DEA, el pacient torna a tenir pols i respira.", rel: ["3.0", "3.51"], prompt: "a paramedic checking the carotid pulse of a man lying on the floor with an oxygen mask, colleague watching a defibrillator screen, relieved" },
+    { code: "3.03", ctx: "Bravo 727 de CECOS: 3.03, activem el Protocol de Cor Aturat.", say: "Bravo set-cents vint-i-set de CECOS: tres punt zero tres, activem el Protocol de Cor Aturat.", ex: "L’aturada es perllonga: s’activa el Protocol de Cor Aturat i es manté la RCP durant el trasllat.", rel: ["3.0", "3.05"], prompt: "paramedics loading a stretcher into an ambulance while a mechanical chest compression device works on the patient, urgent but orderly" },
+    { code: "3.3", ctx: "CECOS de la Bravo 727: 3.3, iniciem la guàrdia.", say: "CECOS de la Bravo set-cents vint-i-set: tres punt tres, iniciem la guàrdia.", ex: "Vehicle i material revisats: la unitat està disponible per rebre serveis.", rel: ["3.6", "3.2"], prompt: "two paramedics at the open rear doors of an ambulance at their base in the morning, checking equipment with a checklist" },
+    { code: "3.2", ctx: "CECOS de la Bravo 727: sol·licitem 3.2.", say: "CECOS de la Bravo set-cents vint-i-set: sol·licitem tres punt dos.", ex: "L’equip fa el descans pactat a la base i durant aquesta estona no rep serveis.", rel: ["3.3", "3.60"], prompt: "two paramedics having lunch at a table in the rest room of an ambulance station, jackets on the chairs, ambulance visible through the window" },
+    { code: "3.6", ctx: "CECOS de la Bravo 727: 3.6 a l’Hospital de Sant Pau.", say: "CECOS de la Bravo set-cents vint-i-set: tres punt sis a l’Hospital de Sant Pau.", ex: "El pacient ja és a urgències. L’equip neteja la llitera i torna a estar disponible.", rel: ["3.5", "3.10"], prompt: "two paramedics cleaning an empty stretcher next to their ambulance at a hospital emergency entrance" },
+    { code: "3.16", ctx: "CECOS de la Bravo 727: 3.16, reposem combustible.", say: "CECOS de la Bravo set-cents vint-i-set: tres punt setze, reposem combustible.", ex: "L’ambulància para a la benzinera i no pot rebre serveis durant uns minuts.", rel: ["3.17", "3.3"], prompt: "an ambulance at a petrol station, a paramedic refuelling it with the fuel nozzle" },
+    { code: "3.17", ctx: "CECOS de la Bravo 727: 3.17 a la base.", say: "CECOS de la Bravo set-cents vint-i-set: tres punt disset a la base.", ex: "Després d’un servei llarg cal reposar guants, apòsits i oxigen abans de tornar a sortir.", rel: ["3.16", "3.3"], prompt: "a paramedic restocking a medical bag with gloves and dressings from the shelves of a supply room, oxygen cylinders nearby" },
+    { code: "3.4", ctx: "CECOS de la Bravo 727: 3.4.", say: "CECOS de la Bravo set-cents vint-i-set: tres punt quatre.", ex: "L’ambulància arriba a l’adreça del servei i l’equip baixa amb el material.", rel: ["3.35", "3.5"], prompt: "an ambulance with emergency lights on just stopped in front of a residential building, two paramedics stepping out with a medical backpack" },
+    { code: "3.5", ctx: "Bravo 727 de CECOS: ampliïn 3.5 en realitzar 3.4.", say: "Bravo set-cents vint-i-set de CECOS: ampliïn tres punt cinc en realitzar tres punt quatre.", ex: "L’equip explica a CECOS què ha trobat al lloc i com està el pacient.", rel: ["3.4", "3.6"], prompt: "a paramedic speaking into a handheld radio while looking at notes on a clipboard, colleague attending a seated patient in the background" },
+    { code: "3.35", ctx: "CECOS de la Bravo 727: 3.35 cap al servei.", say: "CECOS de la Bravo set-cents vint-i-set: tres punt trenta-cinc cap al servei.", ex: "Servei rebut: l’ambulància surt de la base cap a l’adreça indicada.", rel: ["3.3", "3.4"], prompt: "an ambulance driving out of an ambulance station garage with emergency lights turning on, city street" },
+    { code: "3.50", ctx: "Bravo 727 de CECOS: 3.50.", say: "Bravo set-cents vint-i-set de CECOS: tres punt cinquanta.", ex: "CECOS pregunta quants minuts falten perquè la unitat arribi al lloc de l’incident.", rel: ["3.35", "3.4"], prompt: "view from inside an ambulance cab driving through city traffic, navigation screen with a route map on the dashboard, paramedic holding the radio microphone" },
+    { code: "3.52", ctx: "CECOS de la Bravo 727: sol·licitem 3.52 a l’Hospital de Sant Pau.", say: "CECOS de la Bravo set-cents vint-i-set: sol·licitem tres punt cinquanta-dos a l’Hospital de Sant Pau.", ex: "El pacient viatja a l’hospital amb l’equip TES, sense metge ni infermer.", rel: ["3.51", "3.6"], prompt: "inside an ambulance, a paramedic sitting next to a conscious calm patient on the stretcher with a splinted leg, checking a blood pressure cuff" },
+    { code: "3.7", ctx: "CECOS de la Bravo 727: 3.7 al lloc del servei.", say: "CECOS de la Bravo set-cents vint-i-set: tres punt set al lloc del servei.", ex: "Cal presència policial per ordenar el trànsit o fer un atestat. No hi ha risc per a l’equip.", rel: ["3.70", "3.7 ME"], prompt: "a police officer in a plain dark uniform directing traffic with one arm raised beside a parked ambulance on a city street, cars waiting in line, nobody on the ground" },
+    { code: "3.18", ctx: "CECOS de la Bravo 727: 3.18, pacient atrapada al vehicle.", say: "CECOS de la Bravo set-cents vint-i-set: tres punt divuit, pacient atrapada al vehicle.", ex: "Una conductora ha quedat atrapada dins del cotxe: cal que els Bombers l’excarcerin.", rel: ["3.23", "3.14"], prompt: "firefighters with hydraulic rescue tools working on the door of a damaged car while a paramedic supports the driver from the other side" },
+    { code: "3.14", ctx: "CECOS de la Bravo 727: 3.14, necessitem una unitat de suport vital avançat.", say: "CECOS de la Bravo set-cents vint-i-set: tres punt catorze, necessitem una unitat de suport vital avançat.", ex: "Hi ha un pacient crític o més d’un ferit: l’equip demana una altra unitat i en diu el tipus.", rel: ["3.19", "3.18"], prompt: "a second ambulance arriving at a scene where two paramedics are already treating a patient on the pavement, one of them waving it in" },
+    { code: "3.19", ctx: "CECOS de la unitat: sol·licitem 3.19 per fer el trasllat.", say: "CECOS de la unitat: sol·licitem tres punt dinou per fer el trasllat.", ex: "L’equip avançat ha estabilitzat el pacient i demana una USVB perquè el traslladi.", rel: ["3.14", "3.52"], prompt: "an emergency doctor and a nurse finishing treatment of a stable patient at home while two paramedics enter with a stretcher" },
+    { code: "3.23", ctx: "Bravo 727 de CECOS: servei, 3.23 camió-cotxe a la Ronda de Dalt.", say: "Bravo set-cents vint-i-set de CECOS: servei, tres punt vint-i-tres, camió-cotxe a la Ronda de Dalt.", ex: "Col·lisió entre un camió i un turisme en una via ràpida de la ciutat.", rel: ["3.18", "3.29"], prompt: "minor collision between a delivery truck and a small car on an urban ring road, warning triangles, paramedics walking towards the car" },
+    { code: "3.29", ctx: "Bravo 749 de CECOS: servei, 3.29, dona de 70 anys a l’avinguda de Pedralbes.", say: "Bravo set-cents quaranta-nou de CECOS: servei, tres punt vint-i-nou, dona de setanta anys a l’avinguda de Pedralbes.", ex: "Una persona gran ha caigut al carrer o a casa i s’ha fet mal.", rel: ["3.23", "3.32"], prompt: "an elderly woman sitting on the pavement after a fall holding her wrist, a paramedic kneeling beside her and reassuring her" },
+    { code: "3.30", ctx: "Bravo 727 de CECOS: servei, 3.30, home de 62 anys amb dolor al pit.", say: "Bravo set-cents vint-i-set de CECOS: servei, tres punt trenta, home de seixanta-dos anys amb dolor al pit.", ex: "Dolor opressiu al pit que baixa pel braç, suor freda i pal·lidesa.", rel: ["3.33", "3.0"], prompt: "a pale sweating man in his sixties sitting on a sofa with his hand on his chest while a paramedic attaches ECG electrodes" },
+    { code: "3.33", ctx: "Bravo 727 de CECOS: servei, 3.33, pacient que no pot parlar seguit.", say: "Bravo set-cents vint-i-set de CECOS: servei, tres punt trenta-tres, pacient que no pot parlar seguit.", ex: "Li falta molt l’aire: seu inclinat endavant i no pot acabar les frases.", rel: ["3.30", "3.32"], prompt: "a man sitting upright leaning forward struggling to breathe while a paramedic places an oxygen mask on him, pulse oximeter on his finger" },
+    { code: "3.25", ctx: "Bravo 727 de CECOS: servei, 3.25 a la festa major de Gràcia.", say: "Bravo set-cents vint-i-set de CECOS: servei, tres punt vint-i-cinc a la festa major de Gràcia.", ex: "Una persona ha begut molt alcohol, vomita i gairebé no s’aguanta dreta.", rel: ["3.26", "3.32"], prompt: "night street festival, a young adult sitting on a bench looking dizzy holding a water bottle, a paramedic crouching to assess them, friends nearby" },
+    { code: "3.1 S", ctx: "CECOS de la Bravo 727: 3.1 Sierra per consultar el destí del pacient.", say: "CECOS de la Bravo set-cents vint-i-set: tres punt u Sierra per consultar el destí del pacient.", ex: "La unitat demana parlar per telèfon amb el personal sanitari de CECOS.", rel: ["3.1 O", "3.1 M"], prompt: "a paramedic standing next to an ambulance talking on a mobile phone while holding a clipboard" },
+    { code: "3.13", ctx: "A totes les unitats de CECOS: 3.13.", say: "A totes les unitats de CECOS: tres punt tretze.", ex: "Algú parla sense identificar-se o trepitja altres comunicacions. CECOS recorda fer bon ús de la ràdio.", rel: ["3.40", "3.20"], prompt: "close-up of a gloved hand holding a professional handheld two-way radio correctly near the mouth, ambulance interior blurred behind" },
+    { code: "3.20", ctx: "Bravo 727 de CECOS: 3.20.", say: "Bravo set-cents vint-i-set de CECOS: tres punt vint.", ex: "CECOS encara no té totes les dades: la unitat espera atenta a la ràdio.", rel: ["3.5", "3.50"], prompt: "two paramedics sitting in the front seats of a parked ambulance, attentive, looking at the vehicle radio on the dashboard, waiting" },
+    { code: "3.40", ctx: "A totes les unitats de CECOS: 3.40.", say: "A totes les unitats de CECOS: tres punt quaranta.", ex: "Hi ha un comunicat d’emergència: ningú parla per ràdio fins que CECOS ho indiqui.", rel: ["3.13", "3.78"], prompt: "an emergency coordination centre room with dispatchers wearing headsets at desks with multiple screens showing abstract maps, one supervisor raising a hand asking for silence" },
+  ];
+  const F2_REPEAT = { id: 'rep', text: 'No us he copiat. Repetiu, si us plau.', say: 'No us he copiat. Repetiu, si us plau.' };
 
   /* ---------- Fase 4 · La línia del servei ---------- */
   const SEQUENCES = [
@@ -248,6 +282,6 @@ window.DATA = (function () {
 
   const POINTS = { f1: 150, f2: 150, f3: 200, f4: 150, f5: 100, f6: 250 };
 
-  return { CODES, FAMILIES, INTERCO, SPELL, LISTEN, SCENES, CLASSIFY_POOL, SEQUENCES, DECODE, RADIO, POINTS,
+  return { CODES, FAMILIES, INTERCO, SPELL, LISTEN, HEAR, SCENES, F2, F2_REPEAT, SEQUENCES, DECODE, RADIO, POINTS,
     byCode: Object.fromEntries(CODES.map(c => [c.code, c])) };
 })();

@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Codi 3 · Parla com el SEM · Teleemergències</title>
   <meta name="description" content="Aprèn el CODI 3 del SEM i l'alfabet INTERCO en sis fases progressives: escenes il·lustrades, línia del servei i simulador de ràdio amb CECOS (MP0060 Teleemergències, TES 1AA).">
-  <meta name="theme-color" content="#0F1B2D">
-  <link rel="preload" as="font" type="font/woff2" href="./assets/fonts/barlow-condensed-latin-700-normal.woff2" crossorigin>
-  <link rel="preload" as="font" type="font/woff2" href="./assets/fonts/barlow-latin-400-normal.woff2" crossorigin>
+  <meta name="theme-color" content="#0B1530">
+  <link rel="preload" as="font" type="font/woff2" href="./assets/fonts/plus-jakarta-sans-latin-800-normal.woff2" crossorigin>
+  <link rel="preload" as="font" type="font/woff2" href="./assets/fonts/plus-jakarta-sans-latin-500-normal.woff2" crossorigin>
   <link rel="stylesheet" href="./styles.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230F1B2D'/><rect x='10' y='9' width='12' height='18' rx='2.5' fill='none' stroke='%23F5A623' stroke-width='2.4'/><path d='M13 9V4' stroke='%23F5A623' stroke-width='2.4' stroke-linecap='round'/><circle cx='16' cy='21' r='2.2' fill='%23F5A623'/></svg>">
 </head>
@@ -45,7 +45,7 @@
   </svg>
 
   <header class="top" id="top" hidden>
-    <a class="brand" href="#tauler" data-go="dash" aria-label="Tauler">
+    <a class="brand" href="#tauler" aria-label="Tauler">
       <span class="brand-mark"><svg><use href="#i-radio"/></svg></span>
       <span class="brand-text"><b>Codi 3</b><small>Parla com el SEM</small></span>
     </a>
@@ -56,6 +56,20 @@
     </div>
   </header>
   <main id="app" tabindex="-1"></main>
+  <footer class="credit" id="credit">Disseny i continguts: <b>Rubén Vallejo</b> · MP0060 Teleemergències · Institut d’FP Sanitària Vall d’Hebron</footer>
+  <aside class="dock" id="dock" hidden aria-label="Radiocomunicador">
+    <div class="dock-lcd" aria-hidden="true">
+      <div class="lcd-row"><span>TETRA · SEM</span><span>CH <b>03</b></span></div>
+      <div class="lcd-freq">380.4125<small> MHz</small></div>
+      <div class="lcd-status" id="dock-status">EN ESCOLTA</div>
+    </div>
+    <div class="dock-wave"><canvas id="wave" aria-hidden="true"></canvas><div class="dock-cap" id="dock-cap" aria-live="polite"></div></div>
+    <div class="dock-btns">
+      <button class="lamp rx" id="lamp-rx" type="button" title="Torna a escoltar CECOS"><i></i><span>CECOS<small>repeteix</small></span></button>
+      <button class="lamp tx" id="ptt" type="button" disabled><i></i><span>PARLA<small>mantén premut · espai</small></span></button>
+    </div>
+    <label class="dock-vol"><svg><use href="#i-sound"/></svg><span class="sr">Volum</span><input type="range" id="vol" min="0" max="1" step=".05" value=".9"></label>
+  </aside>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <dialog id="ref" aria-labelledby="ref-title"></dialog>
   <noscript>Cal activar JavaScript per fer l'activitat.</noscript>

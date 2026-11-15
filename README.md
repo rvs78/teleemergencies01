@@ -4,36 +4,38 @@ Activitat en línia individual de **MP0060 Teleemergències** (CFGM Emergències
 
 **Font única dels codis:** «CODI 3 MODIFICAT. Codificacions de transmissió de dades pels recursos SEM» (U100.U00.0.D6.008, v1, 23/09/2021).
 
-## Estructura (la de sempre)
+## Estructura
 
-1. **Accés:** nom i cognoms, correu `@isvh.cat` i contrasenya d'aula (**`tes1aa`**, comparada per empremta SHA-256 a `app.js`). És una barrera d'entrada, no una autenticació. El progrés es desa al `localStorage`.
-2. **Tauler:** panell de l'alumne (fases, punts, nota provisional, respostes errònies, ajudes) i ruta de 6 fases que s'obren en ordre.
-3. **Instruccions per fase:** objectiu, nivell de Bloom, què faràs, controls i puntuació, amb una càpsula de vídeo (Remotion).
-4. **Fases i punts (1000):**
+1. **Accés:** nom i cognoms, correu `@isvh.cat` i contrasenya d'aula (**`tes1aa`**, comparada per empremta SHA-256 a `app.js`). Barrera d'entrada, no autenticació. El progrés es desa al `localStorage`.
+2. **Tauler:** panell de l'alumne i recorregut de 6 fases que s'obren en ordre.
+3. **Instruccions per fase:** vídeo narrat (Remotion + veu femenina), objectiu, controls i puntuació.
+4. **Fases (1000 punts)**, amb el **radiocomunicador** a la part inferior (canal, freqüència, forma d'ona, botó verd CECOS i botó vermell PARLA):
 
-| Fase | Bloom | Què es fa | Punts |
-|---|---|---|---|
-| F1 · Alfabet INTERCO | Recordar | 3 lletrejos (tocar paraules en ordre) i 3 escoltes (escriure el que lletreja CECOS) | 150 |
-| F2 · Famílies de codis | Comprendre | Classificar 12 codis en 6 famílies; ajuda «Significat» | 150 |
-| F3 · Escenes il·lustrades | Aplicar | 12 escenes en 3 nivells: amb pista, sense pista, contrarellotge de 20 s | 200 |
-| F4 · La línia del servei | Analitzar | Ordenar 3 serveis complets (arrossegar o fletxes), 2 intents | 150 |
-| F5 · Descodifica | Interpretar | 6 missatges reals → llenguatge planer (qui, què, on) | 100 |
-| F6 · Simulador de ràdio | Transferir | 4 situacions amb PTT; prémer PTT mentre parla CECOS compta com a 3.13 | 250 |
+| Fase | Què es fa | Punts |
+|---|---|---|
+| F1 · Alfabet INTERCO | 4 escoltes (2 amb text, 2 només veu) i 4 paraules lletrejades **per veu**; si CECOS no copia, cal repetir | 150 |
+| F2 · Famílies de codis | 12 codis amb imatge i frase de ràdio; explicació animada amb exemple i 2 codis relacionats | 150 |
+| F3 · Escenes il·lustrades | 12 escenes en 3 nivells; en encertar, el codi apareix en gran sobre el dibuix | 200 |
+| F4 · La línia del servei | Ordenar 3 serveis; encerts en verd | 150 |
+| F5 · Descodifica | 6 missatges de ràdio → llenguatge planer | 100 |
+| F6 · Simulador de ràdio | 4 comunicacions amb PARLA; trepitjar CECOS compta com a 3.13 | 250 |
 
-5. **Resultats:** nota 1–10, punts per fase, respostes errònies per família, codis a repassar i codi de verificació.
-6. **Informe PDF** (jsPDF) per lliurar a la tasca de Google Classroom.
+5. **Resultats** amb gràfiques i **informe PDF** amb codi de verificació per lliurar a Classroom.
 
-Puntuació de cada element: −50 % per error, −30 % per ajuda; al segon error es mostra la resposta correcta.
+### Reconeixement de veu (F1)
+
+Fa servir la Web Speech API del navegador en català (`ca-ES`): funciona a **Chrome i Edge** amb connexió i permís de micròfon. La coincidència és aproximada (accepta «eco/echo», «maik/mike»…; vegeu `HEAR` a `data.js`). Sense micròfon o en un navegador no compatible, la mateixa activitat es fa amb fitxes.
 
 ## Recursos generats amb IA (pre-generats, cap clau al navegador)
 
-| Recurs | Eina | Fitxers | Regenerar |
-|---|---|---|---|
-| 30 escenes + portada + cabina | Seedream 5.5 (OpenRouter) amb full de personatges com a referència | `assets/img/` | `OPENROUTER_API_KEY=… python3 tools/gen_images.py scenes` |
-| Veus de CECOS (20 clips) | HeyGen Voice Turbo free (OpenRouter), Nadine i Lucian alternats | `assets/audio/` | edita `tools/voices.json` i `python3 tools/gen_voices.py` |
-| Càpsules d'instruccions (6) | Remotion | `assets/video/` | `tools/remotion/Composition.tsx` |
+| Recurs | Eina | Regenerar |
+|---|---|---|
+| Escenes il·lustrades (F3), portada | Seedream 5.5 | `python3 tools/gen_images.py scenes` |
+| 26 imatges realistes (F2) | Seedream 5.5 | `python3 tools/gen_f2.py [codi]` |
+| Veus de CECOS (52 clips) i narració dels vídeos | ElevenLabs v3 via OpenRouter | edita `tools/voices.json` i `python3 tools/gen_voices.py` |
+| Vídeos d'instruccions | Remotion | `tools/remotion/Composition.tsx` |
 
-**Canviar les veus:** a `tools/voices.json` hi ha el model i la llista de veus; els textos que es locuten són els camps `say` de `data.js`. L'efecte de ràdio (passabanda 300–3400 Hz, compressió, soroll i pitet) s'aplica al navegador, així que no cal refer res més.
+Totes les eines llegeixen `OPENROUTER_API_KEY` de l'entorn.
 
 ## Fitxers
 

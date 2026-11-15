@@ -1,18 +1,20 @@
-# DESIGN — Codi 3 · Parla com el SEM · «Consola de guàrdia»
+# DESIGN — Codi 3 · Parla com el SEM · v2 «Aula i ràdio»
 
-Món visual: la consola de coordinació de CECOS vista des d'una ambulància. Capçalera i aparells en blau marí de nit, pàgina gris fred (aula il·luminada, ús diürn), ambre de senyalització com a únic accent, verd «3.3 operatiu» per als encerts i vermell de prioritat per als errors i els codis prioritaris. Les il·lustracions (Seedream 5.5, mateixos dos TES amb uniforme verd) porten tot el color narratiu; la interfície és sòbria.
+Aplicació educativa clara i actual amb un radiocomunicador sempre present a la part inferior durant les fases.
 
 | Token | Valor | Ús |
 |---|---|---|
-| `--navy-900` | `#0F1B2D` | capçalera, ràdio, consola |
-| `--paper` | `#EEF1F5` | fons de pàgina (gris fred de consola) |
-| `--ink` / `--ink-2` | `#14213A` / `#4A5872` | text principal / secundari |
-| `--amber` | `#F5A623` | accent sobre marí; `--amber-ink #8A5300` per a text sobre clar |
-| `--ok` | `#1F6B4A` | encert, recurs operatiu |
-| `--bad` | `#B3261E` | error, codis prioritaris |
+| `--bg` / `--surface` | `#F3F5FA` / `#FFFFFF` | pàgina / targetes |
+| `--ink` · `--night` | `#0B1530` | text, capçaleres fosques, ràdio |
+| `--blue` | `#2456F0` | acció principal, hover, selecció |
+| `--sun` | `#FFC53D` | groc SEM: codis sobre fosc, accents |
+| `--ok` / `--bad` | `#0A7F57` / `#C92A30` | encert (fons verd, text blanc) / error |
+| `--rx` / `--tx` | `#3DDC97` / `#FF5D5D` | llum CECOS / llum PARLA |
 
-Tipografia: Barlow Condensed 600/700 (títols, rètols de fase), Barlow 400–600 (text), JetBrains Mono 500/700 només per a codis, ISSI i puntuacions (dades reals, no decoració). Icones SVG pròpies, traç 2 px.
+Tipografia: Plus Jakarta Sans 500–800; JetBrains Mono només per a codis, puntuacions i pantalla de la ràdio. Icones SVG pròpies de traç 2 px.
 
-Moviment: un sol moment amb autoria — l'encesa del LED i el «squelch» de la ràdio quan CECOS parla. La resta, transicions de 160–220 ms amb ease-out; `prefers-reduced-motion` les anul·la.
+Moviment: explicació animada de la F2 (imatge amb escombrat, codi que entra, exemple i codis relacionats en cascada), revelació del codi amb llum a la F3 i barres dels resultats. `prefers-reduced-motion` ho desactiva.
 
-Àudio: veus de CECOS pre-generades (HeyGen Voice, Nadine/Lucian alternats) amb filtre de ràdio aplicat al navegador (passabanda 300–3400 Hz, compressió, soroll i pitet), de manera que canviar de veu no obliga a refer cap efecte.
+Imatges: il·lustració plana (F3, portada) i fotografia realista generada (F2). Cap logotip ni emblema.
+
+Àudio: veus ElevenLabs v3 en català amb efecte de ràdio aplicat al navegador; so de sintonia a cada «Continua».
