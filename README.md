@@ -26,18 +26,23 @@ Activitat en línia individual de **MP0060 Teleemergències** (CFGM Emergències
 
 Quan l'alumne manté premut PARLA/PTT, el navegador **grava un àudio temporal** (només a la memòria), el transcriu, el compara amb el text esperat i **l'elimina**: no es desa ni al dispositiu ni enlloc. Hi ha un indicador de senyal per comprovar que el micròfon funciona.
 
-La transcripció es pot fer de dues maneres (`config.js`):
-
-| `stt` a `config.js` | Com es transcriu | Requisits |
-|---|---|---|
-| buit (per defecte) | Reconeixement de veu del navegador, en català | Chrome o Edge, amb connexió |
-| adreça del servei | El WAV temporal s'envia al servei de `worker/` (ElevenLabs Scribe via OpenRouter) | Desplegar el Worker amb una clau pròpia; vegeu `worker/README.md` |
+La transcripció la fa el servei de `worker/` (Cloudflare Worker, adreça a `config.js`) amb la clau per defecte o amb la clau d'una classe. Si el servei no respon o la clau ha caducat, l'aplicació passa sola al **reconeixement de veu del navegador** (Chrome o Edge).
 
 **Sense micròfon** tot és jugable: a la F1 es trien fitxes (amb paraules falses de la mateixa inicial barrejades) i a la F6 es tria el missatge amb un clic i es prem el PTT.
 
 A la F6 l'alumne fa servir una **emissora de pràctiques** (encesa, volum, canal, subcanal CTCSS i PTT): ha d'engegar-la i sintonitzar el canal i el subcanal de CECOS del full de guàrdia abans de poder comunicar-se.
 
 Proves: `tests/e2e.py` (partida completa amb reconeixement simulat) i `tests/real_voice.py` (cadena real: micròfon simulat amb un WAV → gravació → servei de transcripció → comparació; requereix `tests/stt_proxy.py`).
+
+## Espai del professorat
+
+Botó «Accés professorat» a la pantalla d'entrada (contrasenya de l'aula). Inclou:
+
+- **Guia de l'activitat:** fases, durada, dispositius, accés i avaluació.
+- **Clau d'IA per a la veu:** estat del servei; el docent tria plataforma (OpenRouter, Groq, OpenAI o ElevenLabs), enganxa la clau, prem **Comprova** (envia una mostra d'àudio i mostra què ha entès) i **Desa** amb un codi de classe i un PIN. Obté un enllaç `?classe=CODI` per a l'alumnat; amb codi de classe, l'alumnat pot entrar amb qualsevol correu.
+- **On obtenir la clau** de cada plataforma, pas a pas.
+- **Verifica un informe:** comprova el codi de verificació del PDF a partir del correu i els punts.
+- **Suport:** formulari que obre el correu del docent (Gmail o programa de correu) amb el missatge adreçat a l'autor; l'adreça no apareix al codi en clar.
 
 ## Recursos generats amb IA (pre-generats, cap clau al navegador)
 

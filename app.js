@@ -195,7 +195,25 @@
      (servei configurat a config.js o reconeixement del navegador), es compara amb el text esperat i s'elimina. */
   const CFG = Object.assign({ stt: '' }, window.CODI3_CONFIG || {});
   const SRC = window.SpeechRecognition || window.webkitSpeechRecognition;
-  const ENGINE = CFG.stt ? 'endpoint' : SRC ? 'webspeech' : null;
+  const STT = String(CFG.stt || '').replace(/\/+$/, '');
+  /* codi de classe del professorat (enllaç ?classe=CODI o camp de l'accés): tria quina clau fa servir el servei */
+  const CLS_KEY = 'codi3-classe';
+  let CLASSE = (() => { try {
+    const u = new URLSearchParams(location.search).get('classe');
+    if (u) { localStorage.setItem(CLS_KEY, u.toUpperCase().replace(/[^A-Z0-9]/g, '')); history.replaceState(null, '', location.pathname + location.hash); }
+    return localStorage.getItem(CLS_KEY) || ''; } catch { return ''; } })();
+  function setClasse(c) { CLASSE = String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); try { CLASSE ? localStorage.setItem(CLS_KEY, CLASSE) : localStorage.removeItem(CLS_KEY); } catch { } }
+  let ENGINE;
+  const resetEngine = () => { ENGINE = STT ? 'endpoint' : SRC ? 'webspeech' : null; };
+  /* si el servei falla (clau caducada, sense saldo…), es passa al reconeixement del navegador */
+  const downgrade = () => { if (ENGINE === 'endpoint') ENGINE = SRC ? 'webspeech' : null; };
+  resetEngine();
+  async function serviceStatus(classe) {
+    if (!STT) return { ok: null, none: true };
+    try { const r = await fetch(`${STT}/status?classe=${encodeURIComponent(classe || '')}`, { signal: AbortSignal.timeout(8000) });
+      if (!r.ok) return { ok: null, old: true }; return await r.json(); } catch { return { ok: null }; }
+  }
+  async function checkService() { resetEngine(); const j = await serviceStatus(CLASSE); if (j.ok === false) downgrade(); return j; }
   const ANDROID = /Android/i.test(navigator.userAgent);
   const Mic = (() => {
     let stream = null, an = null, rec = null, chunks = [], peak = 0, poll = 0, t0 = 0, virtual = false;
@@ -253,9 +271,9 @@
       const silent = Mic.real && r.peak < 0.02;
       if (ENGINE === 'endpoint') {
         if (!silent && r.blob) try {
-          const res = await fetch(CFG.stt, { method: 'POST', headers: { 'Content-Type': 'audio/wav' }, body: await toWav(r.blob) });
+          const res = await fetch(STT + '/', { method: 'POST', headers: Object.assign({ 'Content-Type': 'audio/wav' }, CLASSE ? { 'X-Classe': CLASSE } : {}), body: await toWav(r.blob), signal: AbortSignal.timeout(20000) });
           if (!res.ok) throw new Error(res.status); const j = await res.json(); if (j.text) alts = [j.text];
-        } catch { error = 'stt'; }
+        } catch { error = 'stt'; downgrade(); }
       } else if (sr) { const o = await sr.stop(); alts = o.alts; error = o.error; }
       r.blob = null; /* l'àudio és temporal: no es desa ni s'envia enlloc més */
       return { alts, error, silent: silent && !alts.length, ms: r.ms };
@@ -341,9 +359,9 @@
   function go(screen, arg) {
     Radio.stop(); clearInterval(timerId); keys = null; Radio.setPtt(null);
     window.scrollTo({ top: 0 });
-    if (!S && screen !== 'login') screen = 'login';
+    if (!S && screen !== 'login' && screen !== 'teacher') screen = 'login';
     Radio.show(screen === 'phase' && arg !== 'f6' ? 'dock' : false);
-    ({ login, dash, intro, phase: runPhase, results }[screen] || dash)(arg);
+    ({ login, dash, intro, phase: runPhase, results, teacher }[screen] || dash)(arg);
     app.focus({ preventScroll: true });
   }
 
@@ -362,8 +380,11 @@
           <label class="field">Nom i cognoms<input name="name" autocomplete="name" required></label>
           <label class="field">Correu de l’institut<input name="email" type="email" autocomplete="email" inputmode="email" placeholder="nom@isvh.cat" required></label>
           <label class="field">Contrasenya de l’aula<input name="pass" type="password" autocomplete="current-password" required><span class="help">Te la dona el professorat a classe.</span></label>
+          <details class="cls" ${CLASSE ? 'open' : ''}><summary>Tens un codi de classe?</summary>
+            <label class="field">Codi de classe<input name="classe" value="${esc(CLASSE)}" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="12" placeholder="Opcional"><span class="help">Només si el teu professorat te n’ha donat un.</span></label></details>
           <p class="err" id="lerr" role="alert"></p>
           <button class="btn" type="submit">${ic('radio')} Comença la guàrdia</button>
+          <button class="btn ghost small" type="button" id="b-prof">${ic('users')} Accés professorat</button>
           <p class="meta-line">El progrés es desa en aquest navegador. Codis: «CODI 3 MODIFICAT» del SEM.<br>Aplicació dissenyada per <b>Rubén Vallejo</b>.</p>
         </form>
       </section>`;
@@ -372,12 +393,15 @@
       const f = new FormData(e.target), name = f.get('name').trim(), email = f.get('email').trim().toLowerCase();
       const err = m => { $('#lerr').textContent = m; };
       if (name.split(/\s+/).length < 2) return err('Escriu el teu nom i almenys un cognom.');
-      if (!/^[^\s@]+@isvh\.cat$/.test(email)) return err('Escriu el teu correu acabat en @isvh.cat.');
+      const cls = String(f.get('classe') || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (cls && !/^[A-Z0-9]{4,12}$/.test(cls)) return err('El codi de classe té entre 4 i 12 lletres o xifres.');
+      if (cls ? !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) : !/^[^\s@]+@isvh\.cat$/.test(email)) return err(cls ? 'Escriu un correu vàlid.' : 'Escriu el teu correu acabat en @isvh.cat.');
       if (await sha256(f.get('pass').trim().toLowerCase()) !== PASS_HASH) return err('La contrasenya no és correcta. Demana-la al professorat.');
       const prev = load();
       S = (prev && prev.email === email) ? prev : fresh(email, name);
-      S.name = name; save(); go('dash');
+      S.name = name; save(); setClasse(cls); checkService(); go('dash');
     });
+    $('#b-prof').onclick = () => go('teacher');
   }
 
   /* ========== TAULER ========== */
@@ -565,7 +589,7 @@
             if (!cap || busy) return; const c = cap; cap = null; busy = true; $('#heard') && ($('#heard').textContent = 'CECOS està escoltant la gravació…');
             const r = await c.stop(); busy = false; if (done || mode !== 'voice') return;
             if (MIC_ERR.includes(r.error)) return toChips('El navegador ha blocat el micròfon.');
-            if (r.error) { sttFails++; if (sttFails >= 2) return toChips('El servei de transcripció no respon.'); msg = fb('info', 'La transcripció no ha respost. Torna-ho a provar.'); return render(); }
+            if (r.error) { if (!ENGINE) return toChips('El servei de transcripció no respon.'); msg = fb('info', 'El servei de transcripció no ha respost: a partir d’ara es fa servir el reconeixement de veu del navegador. Torna-ho a provar.'); return render(); }
             if (r.silent) { msg = fb('info', 'No arriba senyal del micròfon. Comprova que no està silenciat i que és el micròfon triat al navegador.'); return render(); }
             if (held < 500 || !r.alts.length) { msg = fb('info', 'No t’hem entès. Mantén premut PARLA mentre dius totes les paraules, a poc a poc.'); return render(); }
             const best = r.alts.map(t => ({ t, m: matchSpell(t, letters) })).sort((a, b) => b.m.score - a.m.score)[0];
@@ -861,7 +885,7 @@
           if (ended || !linked || !st || st.type !== 'tx' || busy) return;
           if (cap) {
             const c = cap; cap = null; busy = true; panel(); const r = await c.stop(); busy = false; if (!$('#mx') || sc.steps[step] !== st) return;
-            if (r.error) { note = fb('info', 'La transcripció no ha respost. Tria el missatge amb un clic i prem el PTT.'); return panel(); }
+            if (r.error) { note = fb('info', ENGINE ? 'El servei de transcripció no ha respost: ara es fa servir el reconeixement del navegador. Torna-ho a dir o tria el missatge amb un clic.' : 'La transcripció no ha respost. Tria el missatge amb un clic i prem el PTT.'); return panel(); }
             if (r.silent) { note = fb('info', 'No arriba senyal del micròfon. Comprova’l o tria el missatge amb un clic.'); return panel(); }
             if (held < 600 || !r.alts.length) { note = fb('info', 'No us hem entès. Manteniu premut el PTT mentre dieu tot el missatge.'); return panel(); }
             const best = r.alts.map(t => ({ t, m: matchSay(t, st._opts) })).sort((a, b) => Math.max(...b.m.scores) - Math.max(...a.m.scores))[0];
@@ -880,10 +904,10 @@
   }
 
   /* ========== RESULTATS I INFORME ========== */
+  /* codi de verificació: depèn del correu i dels punts; el professorat el pot comprovar al seu espai */
+  async function vcode(email, pts) { const h = await sha256(`${String(email).trim().toLowerCase()}|${Math.round(pts)}|codi3-tes`); return `C3-${h.slice(0, 4)}-${h.slice(4, 8)}`.toUpperCase(); }
   async function verifyCode() {
-    if (S.verify) return S.verify;
-    const h = await sha256(`${S.email}|${Math.round(total())}|${S.started}|codi3-tes`);
-    S.verify = `C3-${h.slice(0, 4)}-${h.slice(4, 8)}`.toUpperCase(); S.finished = S.finished || Date.now(); save(); return S.verify;
+    S.verify = await vcode(S.email, total()); S.finished = S.finished || Date.now(); save(); return S.verify;
   }
   function reviewList() {
     const seen = new Map(); (S.slips || []).forEach(c => seen.set(c, (seen.get(c) || 0) + 1));
@@ -965,6 +989,214 @@
     doc.save(`Informe_Codi3_${nm}.pdf`); toast('PDF desat. Adjunta’l a la tasca de Classroom.');
   }
 
+  /* ========== ESPAI DEL PROFESSORAT ========== */
+  const PLAT = {
+    openrouter: { name: 'OpenRouter', model: 'ElevenLabs Scribe v2', url: 'https://openrouter.ai/settings/keys', start: 'sk-or-',
+      steps: ['Crea un compte a openrouter.ai.', 'A «Credits», afegeix saldo (amb 5 $ en tens per a molts cursos).', 'A «Keys», prem «Create key»: posa-hi un nom, un <b>límit de crèdit</b> (per exemple, 2 $) i, si vols, una data de caducitat.', 'Copia la clau (comença per <code>sk-or-</code>) i enganxa-la aquí.'],
+      cost: 'Pagament per ús: uns cèntims per classe.', tag: 'Recomanat' },
+    groq: { name: 'Groq', model: 'Whisper Large v3', url: 'https://console.groq.com/keys', start: 'gsk_',
+      steps: ['Crea un compte a console.groq.com.', 'Obre «API Keys» i prem «Create API Key».', 'Copia la clau (comença per <code>gsk_</code>) i enganxa-la aquí.'],
+      cost: 'Té un nivell gratuït amb límits d’ús; consulta’ls a la seva web.', tag: 'Opció sense cost' },
+    openai: { name: 'OpenAI', model: 'GPT Transcribe', url: 'https://platform.openai.com/api-keys', start: 'sk-',
+      steps: ['Crea un compte a platform.openai.com.', 'A «Billing», afegeix saldo i, si vols, un límit mensual.', 'A «API keys», prem «Create new secret key».', 'Copia la clau (comença per <code>sk-</code>) i enganxa-la aquí.'],
+      cost: 'Pagament per ús; cal saldo previ.' },
+    elevenlabs: { name: 'ElevenLabs', model: 'Scribe v2', url: 'https://elevenlabs.io/app/settings/api-keys', start: '',
+      steps: ['Crea un compte a elevenlabs.io.', 'Obre «Developers» → «API Keys» i prem «Create API Key».', 'Si la restringeixes, activa el permís de <b>Speech to Text</b>.', 'Copia la clau i enganxa-la aquí.'],
+      cost: 'Té un pla gratuït limitat i plans de pagament.' },
+  };
+  const SUPPORT = () => atob('bW9jLmxpYW1nQDUwMDJhbWdpcw==').split('').reverse().join(''); /* adreça ofuscada */
+  const newCode = () => Array.from(crypto.getRandomValues(new Uint8Array(6)), b => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b % 32]).join('');
+  async function wavSampleB64() {
+    const r = await fetch('assets/audio/l1.mp3'); const wav = await toWav(new Blob([await r.arrayBuffer()]));
+    const u8 = new Uint8Array(await wav.arrayBuffer()); let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+    return btoa(s);
+  }
+  async function api(path, body) {
+    const r = await fetch(STT + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(30000) });
+    let j = {}; try { j = await r.json(); } catch { } return Object.assign({ http: r.status }, j);
+  }
+
+  function teacher() {
+    header(); Radio.show(false);
+    if (!sessionStorage.getItem('codi3-prof')) {
+      app.innerHTML = `<section class="panel tlogin">
+        <span class="chip-tag">${ic('users')} Professorat</span><h1>Espai del professorat</h1>
+        <p class="muted">Guia de l’activitat, configuració de la clau d’IA per a la veu i suport. Entra amb la contrasenya de l’aula.</p>
+        <form id="tf" class="stack" novalidate><label class="field">Contrasenya<input name="pass" type="password" autocomplete="current-password" required></label>
+          <p class="err" id="terr" role="alert"></p>
+          <div class="row"><button class="btn" type="submit">Entra</button><button class="btn ghost" type="button" id="tb">Torna a l’accés</button></div></form></section>`;
+      $('#tf').addEventListener('submit', async e => { e.preventDefault();
+        if (await sha256(new FormData(e.target).get('pass').trim().toLowerCase()) !== PASS_HASH) return $('#terr').textContent = 'La contrasenya no és correcta.';
+        sessionStorage.setItem('codi3-prof', '1'); go('teacher'); });
+      $('#tb').onclick = () => go('login'); $('#tf input').focus();
+      return;
+    }
+    const T = { provider: 'openrouter', checked: '', code: newCode() };
+    const phRows = [
+      ['F1', 'Alfabet INTERCO', 'Recordar', 'Escolta i escriu (amb text i només amb veu); lletreja per veu o amb fitxes', 150],
+      ['F2', 'Famílies de codis', 'Comprendre', 'Classifica 12 codis amb imatge i frase de ràdio; explicació amb exemple', 150],
+      ['F3', 'Escenes il·lustrades', 'Aplicar', '12 escenes en 3 nivells, l’últim a contrarellotge', 200],
+      ['F4', 'La línia del servei', 'Analitzar', 'Ordena els codis de 3 serveis complets', 150],
+      ['F5', 'Descodifica', 'Interpretar', '6 missatges de ràdio a llenguatge planer', 100],
+      ['F6', 'Simulador de ràdio', 'Transferir', 'Sintonitza l’emissora i parla amb CECOS amb el PTT', 250]];
+    app.innerHTML = `
+      <section class="dash-hero t-hero">
+        <div><span class="chip-tag sun">${ic('users')} Professorat</span><h1 style="margin-top:.6rem">Espai del professorat</h1>
+          <p>Tot el que cal per fer servir «Codi 3 · Parla com el SEM» amb el teu grup: guia, clau d’IA per reconèixer la veu, verificació d’informes i suport.</p>
+          <nav class="tnav" aria-label="Seccions"><a href="#t-guia">Guia</a><a href="#t-servei">Clau d’IA</a><a href="#t-plat">On obtenir la clau</a><a href="#t-verif">Verifica un informe</a><a href="#t-sup">Suport</a></nav></div>
+        <div class="row" style="align-self:start"><button class="btn ghost small t-out" id="t-out">${ic('exit')} Surt</button></div>
+      </section>
+
+      <section class="tsec" id="t-guia" aria-labelledby="g-h"><h2 id="g-h">Guia de l’activitat</h2>
+        <div class="guide-grid">
+          <div class="gcard"><b>${ic('radio')} Què és</b><p>Activitat individual en línia per aprendre el <b>CODI 3</b> del SEM (versió modificada) i l’<b>alfabet INTERCO</b>, des de recordar-los fins a fer-los servir per ràdio. MP0060 Teleemergències (CFGM TES).</p></div>
+          <div class="gcard"><b>${ic('clock')} Durada</b><p>Uns 45–60 minuts (orientatiu). El progrés es desa al navegador: si l’alumne canvia d’ordinador, torna a començar.</p></div>
+          <div class="gcard"><b>${ic('mic')} Dispositius</b><p>Ordinador amb Chrome o Edge i auriculars amb micròfon. També funciona a mòbil i tauleta. <b>Sense micròfon es pot fer tot</b> (fitxes i clic + PTT).</p></div>
+          <div class="gcard"><b>${ic('lock')} Accés de l’alumnat</b><p>Nom, correu i contrasenya <code>tes1aa</code>. Per defecte, correu <code>@isvh.cat</code>; amb un <b>codi de classe</b>, qualsevol correu.</p></div>
+        </div>
+        <div class="panel tpad"><h3>Les sis fases (1000 punts)</h3>
+          <div class="tscroll"><table class="t"><thead><tr><th>Fase</th><th>Nivell</th><th>Què es fa</th><th class="n">Punts</th></tr></thead>
+          <tbody>${phRows.map(r => `<tr><td><b>${r[0]}</b> · ${esc(r[1])}</td><td><span class="chip-tag sun">${r[2]}</span></td><td>${esc(r[3])}</td><td class="n">${r[4]}</td></tr>`).join('')}</tbody></table></div></div>
+        <div class="guide-grid two">
+          <div class="gcard"><b>${ic('check')} Avaluació</b><p>Cada error resta la meitat de l’element i cada ajuda un 30 %; al segon error es mostra la resposta. Nota = punts ÷ 100. L’alumne desa un <b>informe PDF</b> amb la nota, els punts per fase, els codis a repassar i un <b>codi de verificació</b>, i el lliura a Classroom.</p></div>
+          <div class="gcard"><b>${ic('ear')} Veu de l’alumnat</b><p>En prémer PARLA es grava un àudio <b>temporal</b> que es transcriu, es compara amb la resposta i s’elimina. La transcripció la fa la clau d’IA de sota; si no n’hi ha o ha caducat, s’usa el reconeixement de veu del navegador.</p></div>
+        </div>
+      </section>
+
+      <section class="tsec" id="t-servei" aria-labelledby="s-h"><h2 id="s-h">Clau d’IA per a la veu</h2>
+        <div class="status-row"><div class="panel tpad" id="st-def"><b>Servei per defecte</b><p class="muted">Comprovant…</p></div>
+          <div class="panel tpad" id="st-cls"><b>La teva classe</b><p class="muted">Encara no has desat cap clau en aquest navegador.</p></div></div>
+        <div class="panel keybox">
+          <div class="kb-main">
+            <p class="muted">Si vols que el teu grup faci servir la teva pròpia clau, tria la plataforma, enganxa la clau i prem <b>Comprova</b>: l’aplicació envia una mostra d’àudio («Delta, Eco, Alfa») i et mostra què ha entès. Després prem <b>Desa</b> i comparteix l’enllaç de la classe.</p>
+            <fieldset class="seg" aria-label="Plataforma">${Object.entries(PLAT).map(([k, v]) => `<label><input type="radio" name="prov" value="${k}" ${k === T.provider ? 'checked' : ''}><span>${v.name}</span></label>`).join('')}</fieldset>
+            <label class="field">Clau API<span class="keyin"><input id="k-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-or-…"><button type="button" class="icon-btn" id="k-eye" aria-label="Mostra o amaga la clau">${ic('eye')}</button></span>
+              <span class="help" id="k-help"></span></label>
+            <div class="row2"><label class="field">Codi de classe<input id="k-code" value="${T.code}" maxlength="12" autocapitalize="characters" spellcheck="false"><span class="help">L’alumnat l’escriu a l’accés o entra amb l’enllaç.</span></label>
+              <label class="field">PIN del professor/a<input id="k-pin" type="password" inputmode="numeric" maxlength="40" autocomplete="new-password"><span class="help">Mínim 4 caràcters. El necessitaràs per canviar o esborrar la clau.</span></label></div>
+            <div class="actions" style="margin-top:.4rem"><button class="btn ghost" id="k-check">${ic('sound')} Comprova</button><button class="btn" id="k-save" disabled>${ic('check')} Desa</button>
+              <button class="btn ghost small" id="k-del">Esborra la clau d’aquest codi</button></div>
+            <div id="k-res" aria-live="polite"></div>
+          </div>
+          <aside class="kb-side"><b>${ic('lock')} Seguretat i privadesa</b>
+            <ul><li>La clau es desa al servei de transcripció de l’aplicació, lligada al codi de classe, i no es torna a mostrar. No queda al navegador ni a GitHub.</li>
+              <li>Fes servir sempre una clau amb <b>límit de despesa</b> i, si es pot, data de caducitat.</li>
+              <li>L’àudio de l’alumnat s’envia a la plataforma triada per transcriure’l. Consulta la política de dades del teu centre.</li></ul></aside>
+        </div>
+      </section>
+
+      <section class="tsec" id="t-plat" aria-labelledby="p-h"><h2 id="p-h">On obtenir la clau</h2>
+        <div class="plat-grid">${Object.entries(PLAT).map(([k, v]) => `<article class="panel pcard2">
+          <div class="row" style="justify-content:space-between"><h3>${v.name}</h3>${v.tag ? `<span class="chip-tag">${v.tag}</span>` : ''}</div>
+          <p class="muted" style="font-size:.9rem">Model: ${v.model}</p>
+          <ol>${v.steps.map(t => `<li>${t}</li>`).join('')}</ol>
+          <p class="cost">${esc(v.cost)}</p>
+          <a class="btn ghost small" href="${v.url}" target="_blank" rel="noopener">Obre la pàgina de claus ${ic('arrow')}</a></article>`).join('')}</div>
+      </section>
+
+      <section class="tsec" id="t-verif" aria-labelledby="v-h"><h2 id="v-h">Verifica un informe</h2>
+        <form class="panel tpad vform" id="vf"><p class="muted">Escriu el correu i els punts que surten a l’informe PDF, i el codi de verificació. Si no coincideixen, l’informe s’ha modificat.</p>
+          <div class="row3"><label class="field">Correu<input name="email" type="email" required></label><label class="field">Punts<input name="pts" inputmode="numeric" required></label><label class="field">Codi<input name="code" placeholder="C3-XXXX-XXXX" required></label></div>
+          <div class="actions"><button class="btn" type="submit">${ic('check')} Verifica</button></div><div id="v-res" aria-live="polite"></div></form>
+      </section>
+
+      <section class="tsec" id="t-sup" aria-labelledby="u-h"><h2 id="u-h">Suport</h2>
+        <form class="panel tpad" id="sf"><p class="muted">Escriu a l’autor de l’aplicació, Rubén Vallejo, per a dubtes, errors o propostes. El missatge s’obre al teu correu, llest per enviar.</p>
+          <div class="row2"><label class="field">Nom i cognoms<input name="name" required></label><label class="field">Correu<input name="email" type="email" required></label></div>
+          <div class="row2"><label class="field">Centre<input name="centre"></label>
+            <label class="field">Motiu<select name="topic"><option>Dubte d’ús</option><option>Error a l’aplicació</option><option>Clau d’IA</option><option>Proposta de millora</option></select></label></div>
+          <label class="field">Missatge<textarea name="msg" rows="5" required></textarea></label>
+          <p class="err" id="s-err" role="alert"></p>
+          <div class="actions"><button class="btn" type="submit" value="gmail">${ic('mail')} Envia amb Gmail</button>
+            <button class="btn ghost" type="submit" value="mailto">${ic('mail')} Obre el programa de correu</button>
+            <button class="btn ghost small" type="submit" value="copy">${ic('copy')} Copia el missatge</button></div></form>
+      </section>`;
+
+    $('#t-out').onclick = () => { sessionStorage.removeItem('codi3-prof'); go('login'); };
+    $$('.tnav a').forEach(a => a.onclick = e => { e.preventDefault(); $(a.getAttribute('href')).scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+
+    /* estat dels serveis */
+    const pill = (j, what) => j.none ? `<span class="pill warn">Sense servei</span><p class="muted">L’aplicació fa servir el reconeixement de veu del navegador.</p>`
+      : j.ok === true ? `<span class="pill ok">Actiu</span><p class="muted">${PLAT[j.provider] ? PLAT[j.provider].name : ''}${j.source === 'classe' ? ' · clau de la classe' : ''}${j.state === 'unknown' ? ' · es confirma amb «Comprova»' : ''}</p>`
+      : j.ok === false ? `<span class="pill bad">${what === 'def' ? 'Clau caducada o sense saldo' : 'Clau no vàlida'}</span><p class="muted">L’alumnat farà servir el reconeixement de veu del navegador.</p>`
+      : `<span class="pill warn">${j.old ? 'Cal actualitzar el servei' : 'Sense resposta'}</span><p class="muted">${j.old ? 'El servei de transcripció no té la versió nova.' : 'No s’ha pogut contactar amb el servei.'}</p>`;
+    serviceStatus('').then(j => { const e = $('#st-def'); if (e) e.innerHTML = `<b>Servei per defecte</b>${pill(j, 'def')}`; T.kv = j.kv; });
+    let mine = ''; try { mine = localStorage.getItem('codi3-prof-classe') || ''; } catch { }
+    const showMine = () => { const e = $('#st-cls'); if (!e || !mine) return;
+      const link = `${location.origin}${location.pathname}?classe=${mine}`;
+      e.innerHTML = `<b>La teva classe · <span class="code">${mine}</span></b><p class="muted">Comprovant…</p>`;
+      serviceStatus(mine).then(j => { if (!$('#st-cls')) return;
+        e.innerHTML = `<b>La teva classe · <span class="code">${mine}</span></b>${j.source === 'classe' || j.ok !== true ? pill(j, 'cls') : '<span class="pill warn">Codi sense clau</span><p class="muted">Aquest codi no té cap clau desada: s’usa el servei per defecte.</p>'}
+          <div class="share"><input readonly value="${esc(link)}" aria-label="Enllaç de la classe"><button class="btn small" type="button" id="cp-link">${ic('copy')} Copia l’enllaç</button></div>`;
+        $('#cp-link').onclick = () => copy(link, 'Enllaç copiat. Comparteix-lo amb l’alumnat (per exemple, a Classroom).'); }); };
+    showMine();
+
+    /* clau */
+    const key = $('#k-key'), help = $('#k-help'), res = $('#k-res'), saveB = $('#k-save');
+    const prov = () => $('input[name=prov]:checked').value;
+    const sig = () => prov() + '|' + key.value.trim();
+    const sync = () => { const P = PLAT[prov()]; key.placeholder = P.start ? P.start + '…' : 'Clau API'; help.innerHTML = `Model: ${P.model}. <a href="#t-plat" class="link">Com l’obtinc?</a>`; saveB.disabled = !key.value.trim() || T.checked !== sig(); };
+    $$('input[name=prov]').forEach(r => r.onchange = sync); key.oninput = sync; sync();
+    $('#k-eye').onclick = () => { key.type = key.type === 'password' ? 'text' : 'password'; };
+    const out = (kind, html) => { res.innerHTML = fb(kind, html); };
+    const ERR = { clau: 'La plataforma ha rebutjat la clau: revisa que l’has copiada sencera i que és de la plataforma triada.', saldo: 'La clau no té saldo o ha superat el límit d’ús.', servei: 'La plataforma no ha respost. Torna-ho a provar d’aquí a una estona.', 'sense-clau': 'No hi ha cap clau per comprovar.', size: 'La mostra d’àudio no és vàlida.' };
+    $('#k-check').onclick = async () => {
+      if (!STT) return out('ko', 'L’aplicació no té configurat cap servei de transcripció (config.js).');
+      const b = $('#k-check'); b.disabled = true; b.innerHTML = `${ic('clock')} Comprovant…`; res.innerHTML = '';
+      try {
+        const body = { audio: await wavSampleB64() };
+        if (key.value.trim()) { body.provider = prov(); body.key = key.value.trim(); } else body.classe = mine;
+        const j = await api('/check', body);
+        if (j.http === 404 || j.http === 403) out('ko', 'El servei de transcripció no té la versió nova: cal actualitzar el codi del Worker.');
+        else if (j.ok) { const m = matchSpell(j.text, ['D', 'E', 'A']);
+          if (key.value.trim()) T.checked = sig();
+          out(m.ok ? 'ok' : 'info', `El servei respon en ${fmt(j.ms / 1000)} s amb ${PLAT[j.provider] ? PLAT[j.provider].name : j.provider}. Ha entès: «${esc(j.text)}». ${m.ok ? 'Coincideix amb la mostra.' : 'No coincideix del tot amb la mostra (Delta · Eco · Alfa), però la clau funciona.'}${key.value.trim() ? ' Ara ja pots prémer <b>Desa</b>.' : ''}`); }
+        else out('ko', ERR[j.error] || 'No s’ha pogut comprovar la clau.');
+      } catch { out('ko', 'No s’ha pogut contactar amb el servei de transcripció.'); }
+      b.disabled = false; b.innerHTML = `${ic('sound')} Comprova`; sync();
+    };
+    const codePin = () => { const code = $('#k-code').value.toUpperCase().replace(/[^A-Z0-9]/g, ''), pin = $('#k-pin').value;
+      $('#k-code').value = code;
+      if (!/^[A-Z0-9]{4,12}$/.test(code)) { out('ko', 'El codi de classe ha de tenir entre 4 i 12 lletres o xifres.'); return null; }
+      if (pin.length < 4) { out('ko', 'Escriu un PIN d’almenys 4 caràcters.'); $('#k-pin').focus(); return null; }
+      return { code, pin }; };
+    const SAVE_ERR = { kv: 'El servei encara no té activat l’emmagatzematge de claus. Escriu a l’autor des de «Suport».', 'pin-incorrecte': 'Aquest codi de classe ja existeix i el PIN no coincideix. Tria un altre codi o escriu el PIN correcte.', clau: 'La plataforma ha rebutjat la clau.', codi: 'El codi de classe no és vàlid.', pin: 'El PIN ha de tenir com a mínim 4 caràcters.' };
+    saveB.onclick = async () => { const cp = codePin(); if (!cp) return;
+      saveB.disabled = true; const j = await api('/class', { ...cp, provider: prov(), key: key.value.trim() }).catch(() => ({}));
+      if (j.ok) { mine = cp.code; try { localStorage.setItem('codi3-prof-classe', mine); } catch { } key.value = ''; T.checked = ''; sync();
+        out('ok', `Clau desada per a la classe <b class="code">${mine}</b>. Comparteix l’enllaç de la classe amb l’alumnat.`); showMine(); }
+      else { out('ko', SAVE_ERR[j.error] || 'No s’ha pogut desar la clau.'); sync(); } };
+    $('#k-del').onclick = async () => { const cp = codePin(); if (!cp) return;
+      const j = await api('/class/delete', cp).catch(() => ({}));
+      if (j.ok) { if (mine === cp.code) { mine = ''; try { localStorage.removeItem('codi3-prof-classe'); } catch { } $('#st-cls').innerHTML = '<b>La teva classe</b><p class="muted">Clau esborrada. L’alumnat amb aquest codi farà servir el servei per defecte.</p>'; }
+        out('ok', `S’ha esborrat la clau del codi <b class="code">${cp.code}</b>.`); }
+      else out('ko', SAVE_ERR[j.error] || 'No s’ha pogut esborrar.'); };
+
+    /* verificació */
+    $('#vf').addEventListener('submit', async e => { e.preventDefault(); const f = new FormData(e.target);
+      const ok = (await vcode(f.get('email'), +String(f.get('pts')).replace(',', '.'))) === String(f.get('code')).trim().toUpperCase();
+      $('#v-res').innerHTML = fb(ok ? 'ok' : 'ko', ok ? 'El codi coincideix: l’informe correspon a aquest correu i a aquesta puntuació.' : 'El codi no coincideix. Revisa les dades o demana a l’alumne que torni a desar l’informe.'); });
+
+    /* suport */
+    let how = 'gmail';
+    $$('#sf button[type=submit]').forEach(b => b.onclick = () => { how = b.value; });
+    $('#sf').addEventListener('submit', e => { e.preventDefault(); const f = new FormData(e.target);
+      if (!f.get('name').trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.get('email')) || !f.get('msg').trim()) return $('#s-err').textContent = 'Omple el nom, un correu vàlid i el missatge.';
+      $('#s-err').textContent = '';
+      const su = `[Codi 3] ${f.get('topic')}`, body = `${f.get('msg').trim()}\n\n— ${f.get('name').trim()} <${f.get('email').trim()}>${f.get('centre').trim() ? '\n' + f.get('centre').trim() : ''}\nCodi 3 · Parla com el SEM`;
+      const to = SUPPORT();
+      if (how === 'copy') return copy(`Per a: ${to}\nAssumpte: ${su}\n\n${body}`, 'Missatge copiat amb l’adreça. Enganxa’l al teu correu.');
+      const url = how === 'gmail' ? `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}&su=${encodeURIComponent(su)}&body=${encodeURIComponent(body)}`
+        : `mailto:${to}?subject=${encodeURIComponent(su)}&body=${encodeURIComponent(body)}`;
+      const w = window.open(url, '_blank', 'noopener'); if (!w && how === 'mailto') location.href = url;
+      toast(how === 'gmail' ? 'S’ha obert Gmail amb el missatge. Revisa’l i prem Envia.' : 'S’ha obert el programa de correu. Si no s’obre, fes servir «Copia el missatge».'); });
+  }
+  function copy(text, ok) {
+    const done = () => toast(ok);
+    if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, fallback); else fallback();
+    function fallback() { const t = document.createElement('textarea'); t.value = text; document.body.append(t); t.select(); try { document.execCommand('copy'); done(); } catch { toast('No s’ha pogut copiar.'); } t.remove(); }
+  }
+
   /* ========== CONSULTA DE CODIS ========== */
   function openRef() {
     const dlg = $('#ref');
@@ -980,5 +1212,6 @@
   $('#btn-ref').onclick = () => { if (!$('#dock').hidden) return toast('Durant les fases fes servir els botons d’ajuda. La consulta s’obre des del tauler.'); openRef(); };
   $('.brand').addEventListener('click', e => { e.preventDefault(); if (S) go('dash'); });
 
-  go(S ? 'dash' : 'login');
+  if (S) checkService();
+  go(S ? 'dash' : (sessionStorage.getItem('codi3-prof') ? 'teacher' : 'login'));
 })();

@@ -15,6 +15,7 @@ with sync_playwright() as p:
     b = p.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--autoplay-policy=no-user-gesture-required', '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'])
     ctx = b.new_context(viewport={'width': 1366, 'height': 900}, accept_downloads=True, permissions=['microphone'])
     ctx.add_init_script(INIT)
+    ctx.route('**/config.js', lambda r: r.fulfill(body="window.CODI3_CONFIG={stt:''};", content_type='text/javascript'))
     pg = ctx.new_page()
     pg.on('pageerror', lambda e: errors.append(str(e)))
     pg.on('console', lambda m: m.type == 'error' and errors.append(m.text))
@@ -151,7 +152,7 @@ with sync_playwright() as p:
     state = D('JSON.parse(localStorage.getItem("codi3-tes-v2"))')
     print('TOTAL', sum(p['score'] for p in state['phases'].values()), {k: v['score'] for k, v in state['phases'].items()}, 'errs', state['errs'], state['verify'], [m for m in state['mistakes']], state['slips'])
 
-    m = b.new_context(viewport={'width': 390, 'height': 844}, device_scale_factor=2, is_mobile=True, has_touch=True); m.add_init_script(INIT)
+    m = b.new_context(viewport={'width': 390, 'height': 844}, device_scale_factor=2, is_mobile=True, has_touch=True); m.add_init_script(INIT); m.route('**/config.js', lambda r: r.fulfill(body="window.CODI3_CONFIG={stt:''};", content_type='text/javascript'))
     mp = m.new_page(); mp.goto(URL); mp.evaluate('localStorage.clear()'); mp.reload(); mp.screenshot(path=f'{OUT}/21_mobil_login.png')
     st = dict(state); st['phases'] = {'f1': state['phases']['f1']}
     mp.evaluate(f'localStorage.setItem("codi3-tes-v2", {json.dumps(json.dumps(st))})'); mp.reload(); mp.wait_for_selector('.phase-grid'); mp.screenshot(path=f'{OUT}/22_mobil_tauler.png')
