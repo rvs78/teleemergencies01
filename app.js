@@ -193,12 +193,12 @@
   /* ========== MICRÒFON, GRAVACIÓ TEMPORAL I TRANSCRIPCIÓ ==========
      Cada vegada que l'alumne prem PARLA es grava un àudio temporal a la memòria del navegador. Es transcriu
      (servei configurat a config.js o reconeixement del navegador), es compara amb el text esperat i s'elimina. */
-  const CFG = Object.assign({ stt: '' }, window.CODI3_CONFIG || {});
+  const CFG = Object.assign({ stt: '', professorat: false }, window.CODI3_CONFIG || {});
   const SRC = window.SpeechRecognition || window.webkitSpeechRecognition;
   const STT = String(CFG.stt || '').replace(/\/+$/, '');
   /* codi de classe del professorat (enllaç ?classe=CODI o camp de l'accés): tria quina clau fa servir el servei */
   const CLS_KEY = 'codi3-classe';
-  let CLASSE = (() => { try {
+  let CLASSE = !CFG.professorat ? '' : (() => { try {
     const u = new URLSearchParams(location.search).get('classe');
     if (u) { localStorage.setItem(CLS_KEY, u.toUpperCase().replace(/[^A-Z0-9]/g, '')); history.replaceState(null, '', location.pathname + location.hash); }
     return localStorage.getItem(CLS_KEY) || ''; } catch { return ''; } })();
@@ -359,6 +359,7 @@
   function go(screen, arg) {
     Radio.stop(); clearInterval(timerId); keys = null; Radio.setPtt(null);
     window.scrollTo({ top: 0 });
+    if (screen === 'teacher' && !CFG.professorat) screen = 'login';
     if (!S && screen !== 'login' && screen !== 'teacher') screen = 'login';
     Radio.show(screen === 'phase' && arg !== 'f6' ? 'dock' : false);
     ({ login, dash, intro, phase: runPhase, results, teacher }[screen] || dash)(arg);
@@ -380,11 +381,11 @@
           <label class="field">Nom i cognoms<input name="name" autocomplete="name" required></label>
           <label class="field">Correu de l’institut<input name="email" type="email" autocomplete="email" inputmode="email" placeholder="nom@isvh.cat" required></label>
           <label class="field">Contrasenya de l’aula<input name="pass" type="password" autocomplete="current-password" required><span class="help">Te la dona el professorat a classe.</span></label>
-          <details class="cls" ${CLASSE ? 'open' : ''}><summary>Tens un codi de classe?</summary>
-            <label class="field">Codi de classe<input name="classe" value="${esc(CLASSE)}" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="12" placeholder="Opcional"><span class="help">Només si el teu professorat te n’ha donat un.</span></label></details>
+          ${CFG.professorat ? `<details class="cls" ${CLASSE ? 'open' : ''}><summary>Tens un codi de classe?</summary>
+            <label class="field">Codi de classe<input name="classe" value="${esc(CLASSE)}" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="12" placeholder="Opcional"><span class="help">Només si el teu professorat te n’ha donat un.</span></label></details>` : ''}
           <p class="err" id="lerr" role="alert"></p>
           <button class="btn" type="submit">${ic('radio')} Comença la guàrdia</button>
-          <button class="btn ghost small" type="button" id="b-prof">${ic('users')} Accés professorat</button>
+          ${CFG.professorat ? `<button class="btn ghost small" type="button" id="b-prof">${ic('users')} Accés professorat</button>` : ''}
           <p class="meta-line">El progrés es desa en aquest navegador. Codis: «CODI 3 MODIFICAT» del SEM.<br>Aplicació dissenyada per <b>Rubén Vallejo</b>.</p>
         </form>
       </section>`;
@@ -393,7 +394,7 @@
       const f = new FormData(e.target), name = f.get('name').trim(), email = f.get('email').trim().toLowerCase();
       const err = m => { $('#lerr').textContent = m; };
       if (name.split(/\s+/).length < 2) return err('Escriu el teu nom i almenys un cognom.');
-      const cls = String(f.get('classe') || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const cls = !CFG.professorat ? '' : String(f.get('classe') || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
       if (cls && !/^[A-Z0-9]{4,12}$/.test(cls)) return err('El codi de classe té entre 4 i 12 lletres o xifres.');
       if (cls ? !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) : !/^[^\s@]+@isvh\.cat$/.test(email)) return err(cls ? 'Escriu un correu vàlid.' : 'Escriu el teu correu acabat en @isvh.cat.');
       if (await sha256(f.get('pass').trim().toLowerCase()) !== PASS_HASH) return err('La contrasenya no és correcta. Demana-la al professorat.');
@@ -401,7 +402,7 @@
       S = (prev && prev.email === email) ? prev : fresh(email, name);
       S.name = name; save(); setClasse(cls); checkService(); go('dash');
     });
-    $('#b-prof').onclick = () => go('teacher');
+    $('#b-prof') && ($('#b-prof').onclick = () => go('teacher'));
   }
 
   /* ========== TAULER ========== */

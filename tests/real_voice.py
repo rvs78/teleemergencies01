@@ -7,7 +7,7 @@ with sync_playwright() as p:
     b = p.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--autoplay-policy=no-user-gesture-required', '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', f'--use-file-for-fake-audio-capture={WAV}'])
     c = b.new_context(viewport={'width': 1366, 'height': 900}, permissions=['microphone']); pg = c.new_page(); errs = []
     pg.on('pageerror', lambda e: errs.append(str(e)))
-    pg.route('**/config.js', lambda r: r.fulfill(body="window.CODI3_CONFIG={stt:'http://localhost:8766/'};", content_type='text/javascript'))
+    pg.route('**/config.js', lambda r: r.fulfill(body="window.CODI3_CONFIG={stt:'http://localhost:8766'};", content_type='text/javascript'))
     pg.goto(URL); pg.evaluate('localStorage.setItem("codi3-tes-v2", JSON.stringify({v:2,email:"a@isvh.cat",name:"Prova Veu",started:1,phases:{},mistakes:[],slips:[],errs:0,helps:0}))'); pg.reload()
     pg.evaluate("DATA.SPELL=[{word:'SEM',ctx:'prova'}]; DATA.LISTEN=DATA.LISTEN.slice(0,1)")
     pg.click('[data-intro=f1]'); pg.click('#go'); pg.wait_for_selector('#ans'); pg.wait_for_timeout(500)
